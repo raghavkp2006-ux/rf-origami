@@ -39,6 +39,21 @@ from rf_origami.rf.metrics.antenna_metrics import (
     extract_impedance_bandwidth,
 )
 from rf_origami.rf.metrics.result import RFSimulationResult
+from rf_origami.rf.absorber import (
+    PlaneWave,
+    PolarizationType,
+    AbsorberResult,
+    SurfaceFacet,
+    RWGBasis,
+    SurfaceMesh,
+    SurfaceMoMSolver,
+    AbsorberFoldSweepResult,
+    run_absorber_fold_sweep,
+    AbsorberValidationSuite,
+    calculate_reflection,
+    calculate_transmission,
+    calculate_absorption,
+)
 
 __all__ = [
     # Materials
@@ -75,4 +90,19 @@ __all__ = [
     "extract_resonant_frequency",
     "extract_impedance_bandwidth",
     "RFSimulationResult",
+    # Absorber Mode
+    "PlaneWave",
+    "PolarizationType",
+    "AbsorberResult",
+    "SurfaceFacet",
+    "RWGBasis",
+    "SurfaceMesh",
+    "SurfaceMoMSolver",
+    "AbsorberFoldSweepResult",
+    "run_absorber_fold_sweep",
+    "AbsorberValidationSuite",
+    "calculate_reflection",
+    "calculate_transmission",
+    "calculate_absorption",
 ]
+

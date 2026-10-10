@@ -57,10 +57,27 @@ class FoldingEngine:
             )
 
     @classmethod
+    def fold_analytical(
+        cls,
+        crease_pattern: CreasePattern,
+        fold_angle_deg: float = 30.0,
+        pattern_type: str = "miura_ori",
+        params: Optional[Dict[str, Any]] = None,
+    ) -> FoldedMesh:
+        """Calculate 3D folded mesh from crease pattern and analytical fold angle."""
+        p = params or {}
+        return cls.fold(
+            pattern_type=pattern_type,
+            crease_pattern=crease_pattern,
+            params=p,
+            fold_angle_deg=fold_angle_deg,
+        )
+
+    @classmethod
     def _fold_miura(cls, params: Dict[str, Any], fold_angle_deg: float) -> FoldedMesh:
         a = float(params.get("a", 20.0))
         b = float(params.get("b", 20.0))
-        gamma = float(params.get("gamma", 60.0))
+        gamma = float(params.get("gamma", params.get("gamma_deg", 60.0)))
         nx = int(params.get("num_cells_x", 2))
         ny = int(params.get("num_cells_y", 2))
 
@@ -68,6 +85,7 @@ class FoldingEngine:
         rho = (fold_angle_deg / 90.0) * 0.96
         solver = MiuraKinematics(a=a, b=b, gamma_deg=gamma)
         return solver.fold(nx=nx, ny=ny, rho=rho)
+
 
     @classmethod
     def _fold_degree4(cls, pattern: CreasePattern, params: Dict[str, Any], fold_angle_deg: float) -> FoldedMesh:

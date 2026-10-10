@@ -534,3 +534,310 @@ class OrigamiWebService:
             "tuning_ratio": tuning_ratio,
             "step_results": results,
         }
+
+    # =========================================================================
+    # ABSORBER & METASURFACE SERVICES
+    # =========================================================================
+
+    @classmethod
+    def _build_pattern(cls, pattern_type: str, params: Optional[Dict[str, Any]] = None) -> CreasePattern:
+        """Helper to instantiate and generate any registered crease pattern."""
+        key = pattern_type.lower().replace("-", "_").strip()
+        if key not in cls.PATTERN_REGISTRY:
+            key = "miura_ori"
+        generator_cls = cls.PATTERN_REGISTRY[key]["class"]
+        generator = generator_cls()
+        valid_keys = set(generator.default_parameters().keys())
+        p_dict = dict(params or {})
+        if "gamma_deg" in p_dict and "gamma" not in p_dict:
+            p_dict["gamma"] = p_dict["gamma_deg"]
+        clean_params = {k: v for k, v in p_dict.items() if k in valid_keys}
+        return generator.generate(**clean_params)
+
+    @classmethod
+    def simulate_absorber(
+        cls,
+        pattern_type: str = "miura_ori",
+        params: Optional[Dict[str, Any]] = None,
+        fold_angle_deg: float = 30.0,
+        f_start_ghz: float = 1.0,
+        f_stop_ghz: float = 6.0,
+        num_points: int = 31,
+        substrate_material: str = "kapton",
+        conductor_material: str = "copper",
+        ground_backed: bool = True,
+        substrate_thickness_mm: float = 0.5,
+        polarization: str = "linear_x",
+        incidence_angle_deg: float = 0.0,
+        azimuth_angle_deg: float = 0.0,
+        sheet_resistance: float = 0.0,
+        material_tags: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """Run full surface Method of Moments plane-wave scattering and absorption simulation."""
+        from rf_origami.rf.materials.material import MaterialLibrary
+        from rf_origami.rf.absorber.surface_solver import SurfaceMesh, SurfaceMoMSolver
+        from rf_origami.rf.absorber.excitation import PolarizationType
+        from rf_origami.rf.absorber.fields import evaluate_fields_on_grid
+
+        pattern = cls._build_pattern(pattern_type, params)
+        mesh_3d = FoldingEngine.fold_analytical(pattern, fold_angle_deg=float(fold_angle_deg))
+
+        if material_tags and len(material_tags) == len(mesh_3d.faces):
+            mesh_3d.face_materials = list(material_tags)
+
+        surface_mesh = SurfaceMesh.from_folded_mesh(
+            folded_mesh=mesh_3d,
+            ground_backed=ground_backed,
+            substrate_thickness_mm=float(substrate_thickness_mm),
+            target_resolution="medium",
+        )
+
+        sub_mat = MaterialLibrary.get(substrate_material)
+        cond_mat = MaterialLibrary.get(conductor_material)
+
+        solver = SurfaceMoMSolver(
+            mesh=surface_mesh,
+            conductor_material=cond_mat,
+            substrate_material=sub_mat,
+            ground_backed=ground_backed,
+            sheet_resistance=float(sheet_resistance),
+        )
+
+        sim_res = solver.solve_spectrum(
+            f_start_hz=float(f_start_ghz) * 1e9,
+            f_stop_hz=float(f_stop_ghz) * 1e9,
+            num_points=int(num_points),
+            incidence_angle_deg=float(incidence_angle_deg),
+            azimuth_angle_deg=float(azimuth_angle_deg),
+            polarization=polarization,
+            fold_angle_deg=float(fold_angle_deg),
+        )
+
+        dims_3d = [round(float(d), 2) for d in mesh_3d.dimensions()]
+        res_dict = sim_res.to_dict()
+        res_dict["folded_dimensions_mm"] = dims_3d
+        res_dict["pattern_type"] = pattern_type
+        return res_dict
+
+    @classmethod
+    def run_absorber_fold_sweep(
+        cls,
+        pattern_type: str = "miura_ori",
+        params: Optional[Dict[str, Any]] = None,
+        fold_angles: Optional[List[float]] = None,
+        f_start_ghz: float = 1.0,
+        f_stop_ghz: float = 6.0,
+        num_points: int = 25,
+        substrate_material: str = "kapton",
+        conductor_material: str = "copper",
+        ground_backed: bool = True,
+        substrate_thickness_mm: float = 0.5,
+        polarization: str = "linear_x",
+    ) -> Dict[str, Any]:
+        """Execute automated fold angle sweep x frequency spectrum for origami metasurface."""
+        from rf_origami.rf.absorber.fold_sweep import run_absorber_fold_sweep
+        from rf_origami.rf.absorber.excitation import PolarizationType
+
+        pol_enum = PolarizationType(polarization) if polarization in [p.value for p in PolarizationType] else PolarizationType.LINEAR_X
+
+        sweep_res = run_absorber_fold_sweep(
+            pattern_type=pattern_type,
+            pattern_params=params,
+            fold_angles_deg=fold_angles,
+            f_start_ghz=f_start_ghz,
+            f_stop_ghz=f_stop_ghz,
+            num_freq_points=num_points,
+            substrate_material=substrate_material,
+            conductor_material=conductor_material,
+            ground_backed=ground_backed,
+            substrate_thickness_mm=substrate_thickness_mm,
+            polarization=pol_enum,
+        )
+
+        return sweep_res.to_dict()
+
+    @classmethod
+    def get_absorber_benchmarks(cls) -> Dict[str, Any]:
+        """Execute Level 1 through Level 5 canonical benchmarks."""
+        from rf_origami.rf.absorber.validation_cases import AbsorberValidationSuite
+        return AbsorberValidationSuite.run_all()
+
+    @classmethod
+    def run_absorber_optimization(
+        cls,
+        target_frequency_ghz: float = 2.45,
+        min_absorption: float = 0.90,
+        population_size: int = 15,
+        generations: int = 3,
+    ) -> Dict[str, Any]:
+        """Run NSGA-II multi-objective optimization to discover Pareto optimal absorber designs."""
+        from rf_origami.optimization.objectives import AbsorberOptimizationTarget
+        from rf_origami.optimization.nsga2 import NSGA2Optimizer
+
+        target = AbsorberOptimizationTarget(
+            target_frequency_ghz=float(target_frequency_ghz),
+            min_absorption=float(min_absorption),
+        )
+
+        return NSGA2Optimizer.optimize(
+            target=target,
+            population_size=int(population_size),
+            generations=int(generations),
+        )
+
+    @classmethod
+    def export_fabrication(
+        cls,
+        pattern_type: str = "miura_ori",
+        params: Optional[Dict[str, Any]] = None,
+        fold_angle_deg: float = 30.0,
+        design_id: str = "ORIGAMI-ABS-001",
+        substrate_material: str = "Kapton Polyimide",
+        conductor_material: str = "Rolled Annealed Copper (35 um)",
+        substrate_thickness_mm: float = 0.5,
+    ) -> bytes:
+        """Generate complete fabrication release ZIP archive."""
+        from rf_origami.fabrication.package import FabricationPackageBuilder
+
+        pattern = cls._build_pattern(pattern_type, params)
+        mesh_3d = FoldingEngine.fold_analytical(pattern, fold_angle_deg=float(fold_angle_deg))
+
+        return FabricationPackageBuilder.build_zip_package(
+            pattern=pattern,
+            folded_mesh=mesh_3d,
+            design_id=design_id,
+            substrate_material=substrate_material,
+            conductor_material=conductor_material,
+            substrate_thickness_mm=float(substrate_thickness_mm),
+        )
+
+    @classmethod
+    def compare_measurement(
+        cls,
+        csv_data: str,
+        pattern_type: str = "miura_ori",
+        params: Optional[Dict[str, Any]] = None,
+        fold_angle_deg: float = 30.0,
+        substrate_material: str = "kapton",
+        conductor_material: str = "copper",
+    ) -> Dict[str, Any]:
+        """Compare uploaded laboratory measurement against numerical simulation."""
+        from rf_origami.experiments.importer import MeasurementImporter
+        from rf_origami.experiments.comparison import ExperimentalComparator
+
+        meas = MeasurementImporter.import_csv(csv_data)
+        if meas["num_points"] == 0:
+            return {"error": "No valid frequency measurement points parsed from CSV."}
+
+        f_start_ghz = min(meas["frequencies_ghz"])
+        f_stop_ghz = max(meas["frequencies_ghz"])
+
+        sim = cls.simulate_absorber(
+            pattern_type=pattern_type,
+            params=params,
+            fold_angle_deg=fold_angle_deg,
+            f_start_ghz=f_start_ghz,
+            f_stop_ghz=f_stop_ghz,
+            num_points=meas["num_points"],
+            substrate_material=substrate_material,
+            conductor_material=conductor_material,
+        )
+
+        comparison = ExperimentalComparator.compare(
+            sim_frequencies_hz=sim["frequencies_hz"],
+            sim_s11_db=sim["s11_db"],
+            meas_frequencies_hz=meas["frequencies_hz"],
+            meas_s11_db=meas["s11_db"],
+            sim_absorption=sim["absorption"],
+            meas_absorption=meas["absorption"],
+        )
+
+        return {
+            "measurement": meas,
+            "simulation": sim,
+            "comparison": comparison,
+        }
+
+    @classmethod
+    def analyze_metasurface_phase(
+        cls,
+        pattern_type: str = "miura_ori",
+        params: Optional[Dict[str, Any]] = None,
+        fold_angles: Optional[List[float]] = None,
+        f_start_ghz: float = 2.0,
+        f_stop_ghz: float = 6.0,
+        num_points: int = 21,
+    ) -> Dict[str, Any]:
+        """Analyze reflection phase agility across fold angles."""
+        from rf_origami.rf.metasurface.phase import MetasurfacePhaseEngine
+        res = MetasurfacePhaseEngine.analyze_phase_agility(
+            pattern_type=pattern_type,
+            pattern_params=params,
+            fold_angles_deg=fold_angles,
+            f_start_ghz=f_start_ghz,
+            f_stop_ghz=f_stop_ghz,
+            num_freq_points=num_points,
+        )
+        return res.to_dict()
+
+    @classmethod
+    def analyze_metasurface_polarization(
+        cls,
+        pattern_type: str = "miura_ori",
+        params: Optional[Dict[str, Any]] = None,
+        fold_angle_deg: float = 30.0,
+        f_start_ghz: float = 2.0,
+        f_stop_ghz: float = 6.0,
+        num_points: int = 21,
+    ) -> Dict[str, Any]:
+        """Evaluate full polarization conversion matrix and PCR."""
+        from rf_origami.rf.metasurface.polarization import MetasurfacePolarizationEngine
+        res = MetasurfacePolarizationEngine.evaluate_polarization_matrix(
+            pattern_type=pattern_type,
+            pattern_params=params,
+            fold_angle_deg=fold_angle_deg,
+            f_start_ghz=f_start_ghz,
+            f_stop_ghz=f_stop_ghz,
+            num_freq_points=num_points,
+        )
+        return res.to_dict()
+
+    @classmethod
+    def calculate_metasurface_rcs(
+        cls,
+        pattern_type: str = "miura_ori",
+        params: Optional[Dict[str, Any]] = None,
+        fold_angle_deg: float = 30.0,
+        frequency_ghz: float = 2.45,
+    ) -> Dict[str, Any]:
+        """Calculate 3D Radar Cross Section pattern and reduction."""
+        from rf_origami.rf.metasurface.farfield import MetasurfaceFarFieldEngine
+        res = MetasurfaceFarFieldEngine.calculate_bistatic_rcs(
+            pattern_type=pattern_type,
+            pattern_params=params,
+            fold_angle_deg=fold_angle_deg,
+            frequency_hz=frequency_ghz * 1e9,
+        )
+        return res.to_dict()
+
+    @classmethod
+    def evaluate_metasurface_ecm(
+        cls,
+        facet_length_mm: float = 25.0,
+        fold_angle_deg: float = 30.0,
+        f_start_ghz: float = 1.0,
+        f_stop_ghz: float = 6.0,
+        num_points: int = 31,
+    ) -> Dict[str, Any]:
+        """Fast equivalent circuit model impedance prediction."""
+        from rf_origami.rf.metasurface.ecm import MetasurfaceECMEngine
+        res = MetasurfaceECMEngine.evaluate_circuit(
+            facet_length_mm=facet_length_mm,
+            fold_angle_deg=fold_angle_deg,
+            f_start_ghz=f_start_ghz,
+            f_stop_ghz=f_stop_ghz,
+            num_points=num_points,
+        )
+        return res.to_dict()
+
+

@@ -75,14 +75,17 @@ class MiuraOriPattern(BasePattern):
             ),
         ])
 
-    def generate(self, params: Optional[ParameterSet] = None, **kwargs: Any) -> CreasePattern:
+    @classmethod
+    def generate(cls, params: Optional[ParameterSet] = None, **kwargs: Any) -> CreasePattern:
         """Generate the 2D Miura-ori crease pattern.
 
         Args:
             params: Optional ParameterSet. If omitted, default_parameters() is used.
-            **kwargs: Direct parameter overrides (e.g. a=30.0, gamma=55.0).
+            **kwargs: Direct parameter overrides (e.g. a=30.0, gamma=55.0, gamma_deg=55.0).
         """
-        p = self.default_parameters() if params is None else params.copy()
+        p = cls.default_parameters() if params is None else params.copy()
+        if "gamma_deg" in kwargs and "gamma" not in kwargs:
+            kwargs["gamma"] = kwargs["gamma_deg"]
         if kwargs:
             p.update(**kwargs)
 
@@ -92,6 +95,7 @@ class MiuraOriPattern(BasePattern):
         gamma_rad: float = math.radians(gamma_deg)
         nx: int = int(p["num_cells_x"])
         ny: int = int(p["num_cells_y"])
+
 
         # Grid dimensions (each unit cell contains 2x2 facets)
         num_cols = 2 * nx + 1

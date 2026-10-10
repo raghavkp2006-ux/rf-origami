@@ -53,6 +53,37 @@ const appState = {
     isSimulating: false,
     foldSweepResult: null,
     benchmarks: null,
+  },
+
+  // Metasurface Absorber State
+  absorber: {
+    patternType: "miura_ori",
+    foldAngle: 30.0,
+    pol: "linear_x",
+    thetaInc: 0.0,
+    phiInc: 0.0,
+    substrate: "kapton",
+    thickness: 0.5,
+    conductor: "copper",
+    sheetRes: 0.0,
+    groundBacked: true,
+    fStart: 1.0,
+    fStop: 6.0,
+    nPts: 31,
+    showCurrents: true,
+    lastResult: null,
+    sweepResult: null,
+    threeObj: null,
+    edgesObj: null,
+  },
+
+  // Optimization & Fabrication State
+  optimization: {
+    targetFreq: 2.45,
+    minAbs: 0.90,
+    popSize: 16,
+    generations: 4,
+    paretoSolutions: [],
   }
 };
 
@@ -81,6 +112,8 @@ document.addEventListener("DOMContentLoaded", () => {
   initExplorerControls();
   initReferenceControls();
   initRFControls();
+  initAbsorberControls();
+  initOptimizationControls();
   
   // Auto-launch initial exploration so user sees data immediately
   runExploration();
@@ -92,31 +125,63 @@ document.addEventListener("DOMContentLoaded", () => {
 function setupModeSwitching() {
   const tabExplorer = document.getElementById("tab-btn-explorer");
   const tabReference = document.getElementById("tab-btn-reference");
+  const tabAbsorber = document.getElementById("tab-btn-absorber");
+  const tabOptFab = document.getElementById("tab-btn-optfab");
+
   const modeExpContainer = document.getElementById("mode-explorer-container");
   const modeRefContainer = document.getElementById("mode-reference-container");
+  const modeAbsContainer = document.getElementById("mode-absorber-container");
+  const modeOptContainer = document.getElementById("mode-optfab-container");
 
-  tabExplorer.addEventListener("click", () => {
-    appState.currentMode = "explorer";
-    tabExplorer.classList.add("active");
-    tabReference.classList.remove("active");
-    modeExpContainer.classList.add("active");
-    modeRefContainer.classList.remove("active");
-    updateStatus("Generative Explorer Active");
-    onExplorerResize();
-  });
+  const allTabs = [tabExplorer, tabReference, tabAbsorber, tabOptFab].filter(Boolean);
+  const allContainers = [modeExpContainer, modeRefContainer, modeAbsContainer, modeOptContainer].filter(Boolean);
 
-  tabReference.addEventListener("click", () => {
-    appState.currentMode = "reference";
-    tabReference.classList.add("active");
-    tabExplorer.classList.remove("active");
-    modeRefContainer.classList.add("active");
-    modeExpContainer.classList.remove("active");
-    updateStatus("Reference Patterns Mode Active");
-    if (!refSceneInitialized) {
-      initReferenceThreeJS();
-    }
-    onReferenceResize();
-  });
+  function activateTab(activeTab, activeContainer, modeName) {
+    allTabs.forEach(t => t.classList.remove("active"));
+    allContainers.forEach(c => c.classList.remove("active"));
+
+    activeTab.classList.add("active");
+    activeContainer.classList.add("active");
+    appState.currentMode = modeName;
+    updateStatus(`${modeName.charAt(0).toUpperCase() + modeName.slice(1)} Mode Active`);
+  }
+
+  if (tabExplorer) {
+    tabExplorer.addEventListener("click", () => {
+      activateTab(tabExplorer, modeExpContainer, "explorer");
+      onExplorerResize();
+    });
+  }
+
+  if (tabReference) {
+    tabReference.addEventListener("click", () => {
+      activateTab(tabReference, modeRefContainer, "reference");
+      if (!refSceneInitialized) {
+        initReferenceThreeJS();
+      }
+      onReferenceResize();
+    });
+  }
+
+  if (tabAbsorber) {
+    tabAbsorber.addEventListener("click", () => {
+      activateTab(tabAbsorber, modeAbsContainer, "absorber");
+      if (!absSceneInitialized) {
+        initAbsorberThreeJS();
+      }
+      onAbsorberResize();
+      if (!appState.absorber.lastResult) {
+        runAbsorberSim();
+      }
+    });
+  }
+
+  if (tabOptFab) {
+    tabOptFab.addEventListener("click", () => {
+      activateTab(tabOptFab, modeOptContainer, "optimization");
+      onOptimizationResize();
+    });
+  }
 }
 
 function updateStatus(msg) {
@@ -2007,3 +2072,887 @@ async function loadBenchmarks() {
     console.error("Benchmark verification error:", err);
   }
 }
+
+// =====================================================================
+// SECTION 4: METASURFACE ABSORBER STUDIO CONTROLLER
+// =====================================================================
+
+let absSceneInitialized = false;
+let absScene, absCamera, absRenderer, absControls;
+
+function initAbsorberControls() {
+  const foldSlider = document.getElementById("abs-fold-slider");
+  const foldReadout = document.getElementById("abs-fold-readout");
+  const hudAngle = document.getElementById("abs-hud-angle");
+
+  if (foldSlider) {
+    foldSlider.addEventListener("input", (e) => {
+      const val = parseFloat(e.target.value);
+      appState.absorber.foldAngle = val;
+      if (foldReadout) foldReadout.textContent = `${val.toFixed(1)}°`;
+      if (hudAngle) hudAngle.textContent = `${val.toFixed(1)}°`;
+      updateAbsorber3DPreview();
+    });
+  }
+
+  const patSelect = document.getElementById("abs-pattern-type");
+  if (patSelect) {
+    patSelect.addEventListener("change", (e) => {
+      appState.absorber.patternType = e.target.value;
+      const hudPat = document.getElementById("abs-hud-pattern");
+      if (hudPat) hudPat.textContent = e.target.options[e.target.selectedIndex].text;
+      updateAbsorber3DPreview();
+    });
+  }
+
+  const btnRunSim = document.getElementById("btn-run-absorber-sim");
+  if (btnRunSim) {
+    btnRunSim.addEventListener("click", () => {
+      runAbsorberSim();
+    });
+  }
+
+  const btnRunSweep = document.getElementById("btn-run-absorber-sweep");
+  if (btnRunSweep) {
+    btnRunSweep.addEventListener("click", () => {
+      runAbsorberSweep();
+    });
+  }
+
+  const btnToggleCurrents = document.getElementById("btn-abs-toggle-currents");
+  if (btnToggleCurrents) {
+    btnToggleCurrents.addEventListener("click", () => {
+      appState.absorber.showCurrents = !appState.absorber.showCurrents;
+      btnToggleCurrents.textContent = `Currents: ${appState.absorber.showCurrents ? "ON" : "OFF"}`;
+      if (appState.absorber.lastResult) {
+        renderAbsorberMesh(appState.absorber.lastResult);
+      }
+    });
+  }
+
+  const btnResetCam = document.getElementById("btn-abs-reset-3d");
+  if (btnResetCam && absControls && absCamera) {
+    btnResetCam.addEventListener("click", () => {
+      absCamera.position.set(0, -120, 90);
+      absCamera.lookAt(0, 0, 0);
+      absControls.target.set(0, 0, 0);
+      absControls.update();
+    });
+  }
+
+  // Setup heatmap canvas hover interactions
+  const hmCanvas = document.getElementById("abs-heatmap-canvas");
+  if (hmCanvas) {
+    hmCanvas.addEventListener("mousemove", handleHeatmapMouseMove);
+  }
+}
+
+function initAbsorberThreeJS() {
+  const container = document.getElementById("abs-threejs-container");
+  if (!container || absSceneInitialized) return;
+
+  const w = container.clientWidth || 400;
+  const h = container.clientHeight || 300;
+
+  absScene = new THREE.Scene();
+  absScene.background = new THREE.Color(0xffffff);
+
+  absCamera = new THREE.PerspectiveCamera(45, w / h, 0.1, 2000);
+  absCamera.position.set(0, -120, 90);
+  absCamera.up.set(0, 0, 1);
+
+  absRenderer = new THREE.WebGLRenderer({ antialias: true });
+  absRenderer.setSize(w, h);
+  absRenderer.setPixelRatio(window.devicePixelRatio || 1);
+  container.innerHTML = "";
+  container.appendChild(absRenderer.domElement);
+
+  if (typeof THREE.OrbitControls !== "undefined") {
+    absControls = new THREE.OrbitControls(absCamera, absRenderer.domElement);
+    absControls.enableDamping = true;
+    absControls.dampingFactor = 0.08;
+    absControls.target.set(0, 0, 0);
+  }
+
+  const ambLight = new THREE.AmbientLight(0xffffff, 0.7);
+  absScene.add(ambLight);
+
+  const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.6);
+  dirLight1.position.set(50, -50, 100);
+  absScene.add(dirLight1);
+
+  const dirLight2 = new THREE.DirectionalLight(0xffffff, 0.3);
+  dirLight2.position.set(-50, 50, -50);
+  absScene.add(dirLight2);
+
+  const grid = new THREE.GridHelper(200, 20, 0xe2e8f0, 0xf1f5f9);
+  grid.rotation.x = Math.PI / 2;
+  absScene.add(grid);
+
+  absSceneInitialized = true;
+
+  function animate() {
+    requestAnimationFrame(animate);
+    if (absControls) absControls.update();
+    if (absRenderer && absScene && absCamera) {
+      absRenderer.render(absScene, absCamera);
+    }
+  }
+  animate();
+
+  window.addEventListener("resize", onAbsorberResize);
+}
+
+function onAbsorberResize() {
+  const container = document.getElementById("abs-threejs-container");
+  if (container && absRenderer && absCamera) {
+    const w = container.clientWidth;
+    const h = container.clientHeight;
+    if (w > 0 && h > 0) {
+      absCamera.aspect = w / h;
+      absCamera.updateProjectionMatrix();
+      absRenderer.setSize(w, h);
+    }
+  }
+
+  if (appState.absorber.lastResult) {
+    drawAbsorberSpectrum(appState.absorber.lastResult);
+  }
+  if (appState.absorber.sweepResult) {
+    drawAbsorberHeatmap(appState.absorber.sweepResult);
+  }
+}
+
+async function updateAbsorber3DPreview() {
+  // Rapid preview simulation or geometry fetch
+  try {
+    const ptype = appState.absorber.patternType;
+    const foldAngle = appState.absorber.foldAngle;
+    const resp = await fetch("/api/fold", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pattern_type: ptype,
+        params: { a: 25.0, b: 25.0, gamma_deg: 65.0, num_cells_x: 2, num_cells_y: 2 },
+        fold_angle_deg: foldAngle,
+      }),
+    });
+    if (!resp.ok) return;
+    const data = await resp.json();
+    if (data.mesh) {
+      renderAbsorberGeometry(data.mesh);
+    }
+  } catch (e) {
+    console.warn("Absorber preview update error:", e);
+  }
+}
+
+function renderAbsorberGeometry(mesh) {
+  if (!absScene) return;
+
+  if (appState.absorber.threeObj) absScene.remove(appState.absorber.threeObj);
+  if (appState.absorber.edgesObj) absScene.remove(appState.absorber.edgesObj);
+
+  const verts = mesh.vertices;
+  const faces = mesh.faces;
+  if (!verts || !faces) return;
+
+  const positions = [];
+  faces.forEach(f => {
+    if (f.length >= 3) {
+      for (let i = 1; i < f.length - 1; i++) {
+        const v0 = verts[f[0]];
+        const v1 = verts[f[i]];
+        const v2 = verts[f[i + 1]];
+        positions.push(...v0, ...v1, ...v2);
+      }
+    }
+  });
+
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geom.computeVertexNormals();
+
+  const mat = new THREE.MeshLambertMaterial({
+    color: 0xd97706,
+    side: THREE.DoubleSide,
+    transparent: true,
+    opacity: 0.88,
+  });
+
+  const meshObj = new THREE.Mesh(geom, mat);
+  absScene.add(meshObj);
+  appState.absorber.threeObj = meshObj;
+
+  const edgesGeom = new THREE.EdgesGeometry(geom);
+  const edgesMat = new THREE.LineBasicMaterial({ color: 0x1e293b, linewidth: 1.5 });
+  const edgesObj = new THREE.LineSegments(edgesGeom, edgesMat);
+  absScene.add(edgesObj);
+  appState.absorber.edgesObj = edgesObj;
+
+  const hudDims = document.getElementById("abs-hud-dims");
+  if (hudDims && mesh.dimensions) {
+    hudDims.textContent = `${mesh.dimensions[0]} × ${mesh.dimensions[1]} × ${mesh.dimensions[2]} mm`;
+  }
+}
+
+function renderAbsorberMesh(result) {
+  if (!absScene || !result) return;
+  if (appState.absorber.threeObj) absScene.remove(appState.absorber.threeObj);
+  if (appState.absorber.edgesObj) absScene.remove(appState.absorber.edgesObj);
+
+  // If currents exist and showCurrents is enabled, render colored facets
+  const currents = result.surface_currents;
+  const showCurrents = appState.absorber.showCurrents && currents && currents.facets;
+
+  // Render from geometry preview
+  updateAbsorber3DPreview();
+}
+
+async function runAbsorberSim() {
+  const btn = document.getElementById("btn-run-absorber-sim");
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Solving MoM Spectrum...";
+  }
+  updateStatus("Solving electrodynamic surface integral equations for metasurface...");
+
+  try {
+    const ptype = document.getElementById("abs-pattern-type")?.value || "miura_ori";
+    const foldAngle = parseFloat(document.getElementById("abs-fold-slider")?.value || 30.0);
+    const pol = document.getElementById("abs-pol-select")?.value || "linear_x";
+    const thetaInc = parseFloat(document.getElementById("abs-theta-inc")?.value || 0.0);
+    const phiInc = parseFloat(document.getElementById("abs-phi-inc")?.value || 0.0);
+    const subMat = document.getElementById("abs-sub-select")?.value || "kapton";
+    const thickness = parseFloat(document.getElementById("abs-thickness")?.value || 0.5);
+    const condMat = document.getElementById("abs-cond-select")?.value || "copper";
+    const sheetRes = parseFloat(document.getElementById("abs-sheet-res")?.value || 0.0);
+    const groundBacked = document.getElementById("abs-ground-backed")?.checked ?? true;
+    const fStart = parseFloat(document.getElementById("abs-fstart")?.value || 1.0);
+    const fStop = parseFloat(document.getElementById("abs-fstop")?.value || 6.0);
+    const nPts = parseInt(document.getElementById("abs-npts")?.value || 31, 10);
+
+    const resp = await fetch("/api/absorber/simulate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pattern_type: ptype,
+        params: { a: 25.0, b: 25.0, gamma_deg: 65.0, num_cells_x: 2, num_cells_y: 2 },
+        fold_angle: foldAngle,
+        f_start_ghz: fStart,
+        f_stop_ghz: fStop,
+        num_points: nPts,
+        substrate_material: subMat,
+        conductor_material: condMat,
+        ground_backed: groundBacked,
+        substrate_thickness_mm: thickness,
+        polarization: pol,
+        incidence_angle_deg: thetaInc,
+        azimuth_angle_deg: phiInc,
+        sheet_resistance: sheetRes,
+      }),
+    });
+
+    if (!resp.ok) throw new Error("Simulation request failed");
+    const data = await resp.json();
+    appState.absorber.lastResult = data;
+
+    // Update HUD and metrics
+    const f0Ghz = (data.resonant_frequency_hz / 1e9).toFixed(3);
+    const peakAbs = (data.peak_absorption * 100).toFixed(1);
+    const minS11 = data.minimum_s11_db.toFixed(1);
+    const bwMhz = (data.absorption_bandwidth_hz / 1e6).toFixed(0);
+
+    const elF0 = document.getElementById("abs-stat-f0");
+    const elAbs = document.getElementById("abs-stat-peak-abs");
+    const elS11 = document.getElementById("abs-stat-s11");
+    const elBw = document.getElementById("abs-stat-bw");
+    const elEnergy = document.getElementById("abs-stat-energy");
+
+    if (elF0) elF0.textContent = `${f0Ghz} GHz`;
+    if (elAbs) elAbs.textContent = `${peakAbs}%`;
+    if (elS11) elS11.textContent = `${minS11} dB`;
+    if (elBw) elBw.textContent = `${bwMhz} MHz`;
+    if (elEnergy && data.energy_errors) {
+      const maxErr = Math.max(...data.energy_errors);
+      elEnergy.textContent = (1.0 - maxErr).toFixed(6);
+    }
+
+    drawAbsorberSpectrum(data);
+    updateStatus(`MoM Simulation Converged: f₀ = ${f0Ghz} GHz, Peak Absorption = ${peakAbs}%, Min S11 = ${minS11} dB`);
+  } catch (err) {
+    console.error("Absorber simulation error:", err);
+    updateStatus(`Simulation error: ${err.message}`);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "Run MoM Absorber Solve";
+    }
+  }
+}
+
+async function runAbsorberSweep() {
+  const btn = document.getElementById("btn-run-absorber-sweep");
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Sweeping Fold Angles...";
+  }
+  updateStatus("Running 2D fold angle × frequency tuning sweep...");
+
+  try {
+    const ptype = document.getElementById("abs-pattern-type")?.value || "miura_ori";
+    const subMat = document.getElementById("abs-sub-select")?.value || "kapton";
+    const condMat = document.getElementById("abs-cond-select")?.value || "copper";
+    const thickness = parseFloat(document.getElementById("abs-thickness")?.value || 0.5);
+    const pol = document.getElementById("abs-pol-select")?.value || "linear_x";
+
+    const resp = await fetch("/api/absorber/fold-sweep", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pattern_type: ptype,
+        params: { a: 25.0, b: 25.0, gamma_deg: 65.0, num_cells_x: 2, num_cells_y: 2 },
+        fold_angles: [0.0, 15.0, 30.0, 45.0, 60.0, 75.0],
+        f_start_ghz: 1.5,
+        f_stop_ghz: 6.5,
+        num_points: 25,
+        substrate_material: subMat,
+        conductor_material: condMat,
+        substrate_thickness_mm: thickness,
+        polarization: pol,
+      }),
+    });
+
+    if (!resp.ok) throw new Error("Sweep request failed");
+    const data = await resp.json();
+    appState.absorber.sweepResult = data;
+
+    const elTuning = document.getElementById("abs-stat-tuning");
+    if (elTuning) {
+      elTuning.textContent = `${data.tuning_range_ghz} GHz (${data.tuning_ratio}×)`;
+    }
+
+    drawAbsorberHeatmap(data);
+    updateStatus(`2D Fold Sweep Completed: Tuning range = ${data.tuning_range_ghz} GHz (Ratio = ${data.tuning_ratio}×)`);
+  } catch (err) {
+    console.error("Fold sweep error:", err);
+    updateStatus(`Fold sweep error: ${err.message}`);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "Run 2D Fold Angle Sweep";
+    }
+  }
+}
+
+function drawAbsorberSpectrum(data) {
+  const canvas = document.getElementById("abs-spectrum-canvas");
+  if (!canvas || !data || !data.frequencies_hz) return;
+
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  const w = rect.width || 400;
+  const h = rect.height || 220;
+
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, w, h);
+
+  const padL = 45, padR = 45, padT = 20, padB = 30;
+  const plotW = w - padL - padR;
+  const plotH = h - padT - padB;
+
+  const freqs = data.frequencies_hz.map(f => f / 1e9);
+  const fMin = freqs[0];
+  const fMax = freqs[freqs.length - 1];
+  const abs = data.absorption;
+  const s11 = data.s11_db;
+
+  // Grid
+  ctx.strokeStyle = "#f1f5f9";
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 5; i++) {
+    const y = padT + (plotH / 5) * i;
+    ctx.beginPath();
+    ctx.moveTo(padL, y);
+    ctx.lineTo(padL + plotW, y);
+    ctx.stroke();
+
+    // Left Y Axis labels (Absorption %)
+    ctx.fillStyle = "#16a34a";
+    ctx.font = "9.5px 'Fira Code', monospace";
+    ctx.textAlign = "right";
+    ctx.fillText(`${(100 - i * 20)}%`, padL - 6, y + 3);
+
+    // Right Y Axis labels (S11 dB)
+    ctx.fillStyle = "#0284c7";
+    ctx.textAlign = "left";
+    ctx.fillText(`${-(i * 6)}dB`, padL + plotW + 6, y + 3);
+  }
+
+  // X Axis Ticks & Labels
+  for (let i = 0; i <= 5; i++) {
+    const x = padL + (plotW / 5) * i;
+    const fVal = (fMin + (fMax - fMin) * (i / 5)).toFixed(1);
+    ctx.strokeStyle = "#f1f5f9";
+    ctx.beginPath();
+    ctx.moveTo(x, padT);
+    ctx.lineTo(x, padT + plotH);
+    ctx.stroke();
+
+    ctx.fillStyle = "#64748b";
+    ctx.textAlign = "center";
+    ctx.fillText(`${fVal} GHz`, x, padT + plotH + 18);
+  }
+
+  // Plot Absorption A(f) with Green Fill
+  ctx.beginPath();
+  freqs.forEach((f, i) => {
+    const x = padL + ((f - fMin) / (fMax - fMin)) * plotW;
+    const y = padT + (1.0 - Math.min(1.0, Math.max(0, abs[i]))) * plotH;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.strokeStyle = "#16a34a";
+  ctx.lineWidth = 2.2;
+  ctx.stroke();
+
+  // Fill area under A(f)
+  ctx.lineTo(padL + plotW, padT + plotH);
+  ctx.lineTo(padL, padT + plotH);
+  ctx.closePath();
+  ctx.fillStyle = "rgba(22, 163, 74, 0.12)";
+  ctx.fill();
+
+  // Plot Reflection S11(f) with Blue Dashed Line
+  ctx.save();
+  ctx.setLineDash([4, 3]);
+  ctx.beginPath();
+  freqs.forEach((f, i) => {
+    const x = padL + ((f - fMin) / (fMax - fMin)) * plotW;
+    const dbVal = Math.max(-30, Math.min(0, s11[i]));
+    const y = padT + (-dbVal / 30.0) * plotH;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.strokeStyle = "#0284c7";
+  ctx.lineWidth = 2.0;
+  ctx.stroke();
+  ctx.restore();
+
+  // Resonant marker
+  if (data.resonant_frequency_hz) {
+    const f0Ghz = data.resonant_frequency_hz / 1e9;
+    if (f0Ghz >= fMin && f0Ghz <= fMax) {
+      const x0 = padL + ((f0Ghz - fMin) / (fMax - fMin)) * plotW;
+      ctx.strokeStyle = "#d97706";
+      ctx.setLineDash([2, 2]);
+      ctx.beginPath();
+      ctx.moveTo(x0, padT);
+      ctx.lineTo(x0, padT + plotH);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = "#d97706";
+      ctx.font = "bold 9.5px 'Fira Code', monospace";
+      ctx.textAlign = "center";
+      ctx.fillText(`f₀ = ${f0Ghz.toFixed(2)} GHz`, x0, padT - 6);
+    }
+  }
+}
+
+function drawAbsorberHeatmap(data) {
+  const canvas = document.getElementById("abs-heatmap-canvas");
+  if (!canvas || !data || !data.heatmap_matrix) return;
+
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  const w = rect.width || 800;
+  const h = rect.height || 200;
+
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+
+  ctx.fillStyle = "#0f172a";
+  ctx.fillRect(0, 0, w, h);
+
+  const padL = 60, padR = 80, padT = 20, padB = 30;
+  const plotW = w - padL - padR;
+  const plotH = h - padT - padB;
+
+  const mat = data.heatmap_matrix; // 2D array [angles x freqs]
+  const angles = data.fold_angles_deg;
+  const freqs = data.frequencies_hz.map(f => f / 1e9);
+
+  const nRows = mat.length;
+  const nCols = mat[0].length;
+  const cellW = plotW / nCols;
+  const cellH = plotH / nRows;
+
+  // Draw Heatmap Cells
+  for (let r = 0; r < nRows; r++) {
+    for (let c = 0; c < nCols; c++) {
+      const val = mat[r][c]; // [0, 1]
+      ctx.fillStyle = getHeatmapColor(val);
+      const x = padL + c * cellW;
+      const y = padT + (nRows - 1 - r) * cellH;
+      ctx.fillRect(x, y, cellW + 0.5, cellH + 0.5);
+    }
+  }
+
+  // Draw Resonant Trajectory Line
+  if (data.resonance_vs_fold) {
+    ctx.beginPath();
+    data.resonance_vs_fold.forEach((item, idx) => {
+      const rIdx = angles.indexOf(item.fold_angle_deg);
+      const fGhz = item.resonant_frequency_hz / 1e9;
+      const fMin = freqs[0];
+      const fMax = freqs[freqs.length - 1];
+      const x = padL + ((fGhz - fMin) / (fMax - fMin)) * plotW;
+      const y = padT + (nRows - 1 - rIdx + 0.5) * cellH;
+      if (idx === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    // Trajectory dots
+    data.resonance_vs_fold.forEach((item) => {
+      const rIdx = angles.indexOf(item.fold_angle_deg);
+      const fGhz = item.resonant_frequency_hz / 1e9;
+      const fMin = freqs[0];
+      const fMax = freqs[freqs.length - 1];
+      const x = padL + ((fGhz - fMin) / (fMax - fMin)) * plotW;
+      const y = padT + (nRows - 1 - rIdx + 0.5) * cellH;
+      ctx.fillStyle = "#38bdf8";
+      ctx.beginPath();
+      ctx.arc(x, y, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    });
+  }
+
+  // Axes and Labels
+  ctx.fillStyle = "#94a3b8";
+  ctx.font = "10px 'Fira Code', monospace";
+  ctx.textAlign = "right";
+
+  angles.forEach((ang, r) => {
+    const y = padT + (nRows - 1 - r + 0.5) * cellH;
+    ctx.fillText(`${ang}°`, padL - 8, y + 3);
+  });
+
+  ctx.textAlign = "center";
+  for (let i = 0; i <= 6; i++) {
+    const x = padL + (plotW / 6) * i;
+    const fVal = (freqs[0] + (freqs[freqs.length - 1] - freqs[0]) * (i / 6)).toFixed(1);
+    ctx.fillText(`${fVal}G`, x, padT + plotH + 18);
+  }
+
+  // Colorbar
+  const cbL = padL + plotW + 20;
+  const cbW = 12;
+  for (let y = 0; y < plotH; y++) {
+    const val = 1.0 - y / plotH;
+    ctx.fillStyle = getHeatmapColor(val);
+    ctx.fillRect(cbL, padT + y, cbW, 1);
+  }
+  ctx.strokeStyle = "#334155";
+  ctx.strokeRect(cbL, padT, cbW, plotH);
+  ctx.fillStyle = "#94a3b8";
+  ctx.textAlign = "left";
+  ctx.fillText("100%", cbL + cbW + 6, padT + 10);
+  ctx.fillText("50%", cbL + cbW + 6, padT + plotH / 2 + 3);
+  ctx.fillText("0%", cbL + cbW + 6, padT + plotH);
+}
+
+function getHeatmapColor(val) {
+  // Turbo/Jet colormap mapping: [0, 1] -> navy -> teal -> yellow -> bright red
+  const v = Math.max(0, Math.min(1, val));
+  let r, g, b;
+  if (v < 0.25) {
+    const t = v / 0.25;
+    r = 15 + t * (20 - 15);
+    g = 23 + t * (140 - 23);
+    b = 80 + t * (200 - 80);
+  } else if (v < 0.5) {
+    const t = (v - 0.25) / 0.25;
+    r = 20 + t * (16 - 20);
+    g = 140 + t * (185 - 140);
+    b = 200 + t * (129 - 200);
+  } else if (v < 0.75) {
+    const t = (v - 0.5) / 0.25;
+    r = 16 + t * (245 - 16);
+    g = 185 + t * (158 - 185);
+    b = 129 + t * (11 - 129);
+  } else {
+    const t = (v - 0.75) / 0.25;
+    r = 245 + t * (239 - 245);
+    g = 158 + t * (68 - 158);
+    b = 11 + t * (68 - 11);
+  }
+  return `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
+}
+
+function handleHeatmapMouseMove(e) {
+  const canvas = document.getElementById("abs-heatmap-canvas");
+  const data = appState.absorber.sweepResult;
+  if (!canvas || !data || !data.heatmap_matrix) return;
+
+  const rect = canvas.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
+
+  const padL = 60, padR = 80, padT = 20, padB = 30;
+  const plotW = rect.width - padL - padR;
+  const plotH = rect.height - padT - padB;
+
+  if (mouseX < padL || mouseX > padL + plotW || mouseY < padT || mouseY > padT + plotH) {
+    return;
+  }
+
+  const mat = data.heatmap_matrix;
+  const angles = data.fold_angles_deg;
+  const freqs = data.frequencies_hz.map(f => f / 1e9);
+
+  const nRows = mat.length;
+  const nCols = mat[0].length;
+
+  const c = Math.floor(((mouseX - padL) / plotW) * nCols);
+  const rInv = Math.floor(((mouseY - padT) / plotH) * nRows);
+  const r = nRows - 1 - rInv;
+
+  if (r >= 0 && r < nRows && c >= 0 && c < nCols) {
+    const ang = angles[r];
+    const fGhz = freqs[c].toFixed(2);
+    const absVal = (mat[r][c] * 100).toFixed(1);
+    const hoverEl = document.getElementById("abs-heatmap-hover-info");
+    if (hoverEl) {
+      hoverEl.textContent = `θ = ${ang}° | f = ${fGhz} GHz | Absorption = ${absVal}%`;
+    }
+  }
+}
+
+// =====================================================================
+// SECTION 5: MULTI-OBJECTIVE OPTIMIZATION & FABRICATION CONTROLLER
+// =====================================================================
+
+function initOptimizationControls() {
+  const btnRunOpt = document.getElementById("btn-run-nsga2");
+  if (btnRunOpt) {
+    btnRunOpt.addEventListener("click", () => {
+      runNSGA2Optimization();
+    });
+  }
+
+  const btnFabZip = document.getElementById("btn-export-fab-zip");
+  if (btnFabZip) {
+    btnFabZip.addEventListener("click", () => {
+      exportFabricationZip();
+    });
+  }
+}
+
+function onOptimizationResize() {
+  if (appState.optimization.paretoSolutions.length > 0) {
+    drawParetoChart(appState.optimization.paretoSolutions);
+  }
+}
+
+async function runNSGA2Optimization() {
+  const btn = document.getElementById("btn-run-nsga2");
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Running Evolutionary Search...";
+  }
+  updateStatus("Executing NSGA-II multi-objective optimization across design space...");
+
+  try {
+    const targetFreq = parseFloat(document.getElementById("opt-target-freq")?.value || 2.45);
+    const minAbs = parseFloat(document.getElementById("opt-min-abs")?.value || 0.90);
+    const popSize = parseInt(document.getElementById("opt-pop-size")?.value || 16, 10);
+    const gens = parseInt(document.getElementById("opt-generations")?.value || 4, 10);
+
+    const resp = await fetch("/api/absorber/optimize", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        target_frequency_ghz: targetFreq,
+        min_absorption: minAbs,
+        population_size: popSize,
+        generations: gens,
+      }),
+    });
+
+    if (!resp.ok) throw new Error("Optimization failed");
+    const data = await resp.json();
+    appState.optimization.paretoSolutions = data.pareto_front || [];
+
+    const hudPareto = document.getElementById("opt-hud-pareto-count");
+    if (hudPareto) hudPareto.textContent = appState.optimization.paretoSolutions.length;
+
+    drawParetoChart(appState.optimization.paretoSolutions);
+    populateParetoTable(appState.optimization.paretoSolutions);
+
+    updateStatus(`NSGA-II Complete: Discovered ${appState.optimization.paretoSolutions.length} non-dominated Pareto designs.`);
+  } catch (err) {
+    console.error("Optimization error:", err);
+    updateStatus(`Optimization error: ${err.message}`);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "Run NSGA-II Multi-Objective Search";
+    }
+  }
+}
+
+function drawParetoChart(solutions) {
+  const canvas = document.getElementById("opt-pareto-canvas");
+  if (!canvas || !solutions || solutions.length === 0) return;
+
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  const w = rect.width || 450;
+  const h = rect.height || 300;
+
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, w, h);
+
+  const padL = 50, padR = 30, padT = 30, padB = 40;
+  const plotW = w - padL - padR;
+  const plotH = h - padT - padB;
+
+  // Axes
+  ctx.strokeStyle = "#e2e8f0";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(padL, padT, plotW, plotH);
+
+  // X Axis Label (Tuning Range GHz)
+  ctx.fillStyle = "#475569";
+  ctx.font = "11px 'Inter', sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("Tuning Range [GHz]", padL + plotW / 2, padT + plotH + 30);
+
+  // Y Axis Label (Folded Compactness)
+  ctx.save();
+  ctx.translate(16, padT + plotH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText("Folded Compactness (A_folded / A_flat)", 0, 0);
+  ctx.restore();
+
+  // Plot Points
+  const xVals = solutions.map(s => s.objectives.tuning_range_ghz || 0.5);
+  const yVals = solutions.map(s => s.objectives.compactness_ratio || 0.5);
+
+  const xMin = 0.0, xMax = Math.max(2.5, Math.max(...xVals) * 1.2);
+  const yMin = 0.0, yMax = 1.0;
+
+  solutions.forEach((s, i) => {
+    const x = padL + (xVals[i] / xMax) * plotW;
+    const y = padT + (1.0 - yVals[i] / yMax) * plotH;
+    const peakAbs = s.objectives.peak_absorption || 0.85;
+
+    ctx.fillStyle = "#d97706";
+    ctx.beginPath();
+    ctx.arc(x, y, 5 + peakAbs * 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#92400e";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.fillStyle = "#1e293b";
+    ctx.font = "bold 9px 'Fira Code', monospace";
+    ctx.fillText(`#${s.rank || i + 1}`, x + 8, y - 6);
+  });
+}
+
+function populateParetoTable(solutions) {
+  const tbody = document.getElementById("opt-pareto-tbody");
+  if (!tbody) return;
+
+  if (!solutions || solutions.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted">No solutions found.</td></tr>`;
+    return;
+  }
+
+  let html = "";
+  solutions.forEach((s, idx) => {
+    const obj = s.objectives || {};
+    const p = s.parameters || {};
+    html += `
+      <tr>
+        <td><strong style="color: var(--accent-primary);">#${s.rank || idx + 1}</strong></td>
+        <td>${(obj.tuning_range_ghz || 0).toFixed(2)} GHz</td>
+        <td>${(obj.compactness_ratio || 0).toFixed(3)}</td>
+        <td><span class="text-success font-bold">${((obj.peak_absorption || 0) * 100).toFixed(1)}%</span></td>
+        <td>a=${p.a || 25}mm, b=${p.b || 25}mm, γ=${p.gamma_deg || 65}°</td>
+      </tr>
+    `;
+  });
+  tbody.innerHTML = html;
+}
+
+async function exportFabricationZip() {
+  const btn = document.getElementById("btn-export-fab-zip");
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Packaging Production Archive...";
+  }
+  updateStatus("Generating RS-274X Gerbers, DXF cut layers, STL panels, and BOM...");
+
+  try {
+    const subDesc = document.getElementById("fab-substrate-desc")?.value || "Kapton Polyimide (0.5mm)";
+    const condDesc = document.getElementById("fab-conductor-desc")?.value || "Rolled Annealed Copper (35 um)";
+    const foldAngle = appState.absorber.foldAngle || 30.0;
+
+    const resp = await fetch("/api/fabrication/export", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pattern_type: appState.absorber.patternType || "miura_ori",
+        params: { a: 25.0, b: 25.0, gamma_deg: 65.0, num_cells_x: 2, num_cells_y: 2 },
+        fold_angle_deg: foldAngle,
+        design_id: "ORIGAMI-ABS-FORGE-001",
+        substrate_material: subDesc,
+        conductor_material: condDesc,
+      }),
+    });
+
+    if (!resp.ok) throw new Error("Fabrication export failed");
+
+    const blob = await resp.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "rf_origami_fabrication_release.zip";
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+
+    updateStatus("Fabrication release ZIP downloaded successfully.");
+  } catch (err) {
+    console.error("Fabrication export error:", err);
+    updateStatus(`Export error: ${err.message}`);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "Download Fabrication ZIP";
+    }
+  }
+}
+

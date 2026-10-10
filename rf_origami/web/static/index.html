@@ -22,6 +22,8 @@
     <div class="mode-tabs">
       <button id="tab-btn-explorer" class="mode-tab-btn active">Generative Explorer</button>
       <button id="tab-btn-reference" class="mode-tab-btn">Reference Patterns</button>
+      <button id="tab-btn-absorber" class="mode-tab-btn">Metasurface Absorber</button>
+      <button id="tab-btn-optfab" class="mode-tab-btn">Optimization & Fab</button>
     </div>
 
     <!-- Workflow Indicators -->
@@ -679,6 +681,325 @@
         </div>
       </div>
 
+    </main>
+
+  </div>
+
+
+  <!-- =====================================================================
+       CONTAINER: MODE 3 — METASURFACE ABSORBER STUDIO
+       ===================================================================== -->
+  <div id="mode-absorber-container" class="app-container mode-view">
+
+    <!-- Absorber Left Sidebar -->
+    <aside class="sidebar">
+
+      <!-- Metasurface Geometry Selection -->
+      <section class="panel-section">
+        <div class="section-title">Metasurface Geometry</div>
+        <div class="form-group">
+          <label class="form-label" for="abs-pattern-type">Origami Unit Pattern</label>
+          <select id="abs-pattern-type" class="form-select">
+            <option value="miura_ori" selected>Miura-Ori Tessellation</option>
+            <option value="degree4_vertex">Degree-4 Vertex</option>
+            <option value="waterbomb">Waterbomb Pattern</option>
+            <option value="yoshimura">Yoshimura Lattice</option>
+          </select>
+        </div>
+
+        <div class="fold-slider-container">
+          <div class="fold-header">
+            <span class="fold-title">Fold Angle (θ)</span>
+            <span id="abs-fold-readout" class="fold-readout">30.0°</span>
+          </div>
+          <input type="range" id="abs-fold-slider" class="fold-slider" min="0" max="75" step="0.5" value="30">
+          <div class="fold-ticks">
+            <span>0° (Flat)</span>
+            <span>35°</span>
+            <span>75° (Folded)</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- EM Plane Wave Excitation -->
+      <section class="panel-section">
+        <div class="section-title">Plane Wave Excitation</div>
+
+        <div class="form-group">
+          <label class="form-label" for="abs-pol-select">Polarization State</label>
+          <select id="abs-pol-select" class="form-select">
+            <option value="linear_x" selected>Linear (X-Polarized)</option>
+            <option value="linear_y">Linear (Y-Polarized)</option>
+            <option value="te">TE (Transverse Electric)</option>
+            <option value="tm">TM (Transverse Magnetic)</option>
+            <option value="rhcp">Circular RHCP</option>
+            <option value="lhcp">Circular LHCP</option>
+          </select>
+        </div>
+
+        <div class="filter-inputs">
+          <div class="filter-row">
+            <span class="filter-label">Incidence Polar (θinc)</span>
+            <div class="filter-input-wrap">
+              <input type="number" id="abs-theta-inc" class="form-input mini" value="0.0" min="0" max="80" step="5">
+              <span class="filter-unit">°</span>
+            </div>
+          </div>
+
+          <div class="filter-row">
+            <span class="filter-label">Azimuth Angle (φinc)</span>
+            <div class="filter-input-wrap">
+              <input type="number" id="abs-phi-inc" class="form-input mini" value="0.0" min="0" max="360" step="15">
+              <span class="filter-unit">°</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Metasurface Material Stack -->
+      <section class="panel-section">
+        <div class="section-title">Metasurface Stack</div>
+
+        <div class="filter-inputs">
+          <div class="filter-row">
+            <span class="filter-label">Substrate Material</span>
+            <div class="filter-input-wrap">
+              <select id="abs-sub-select" class="form-select mini">
+                <option value="kapton" selected>Kapton (εr=3.4)</option>
+                <option value="fr4">FR-4 (εr=4.4)</option>
+                <option value="rogers_ro4003c">Rogers RO4003C (εr=3.55)</option>
+                <option value="air">Air (εr=1.0)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="filter-row">
+            <span class="filter-label">Substrate Thickness (h)</span>
+            <div class="filter-input-wrap">
+              <input type="number" id="abs-thickness" class="form-input mini" value="0.5" min="0.05" max="5.0" step="0.1">
+              <span class="filter-unit">mm</span>
+            </div>
+          </div>
+
+          <div class="filter-row">
+            <span class="filter-label">Conductor Material</span>
+            <div class="filter-input-wrap">
+              <select id="abs-cond-select" class="form-select mini">
+                <option value="copper" selected>Copper (σ=5.8e7)</option>
+                <option value="pec">PEC (Ideal)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="filter-row">
+            <span class="filter-label">Sheet Resistance (Rs)</span>
+            <div class="filter-input-wrap">
+              <input type="number" id="abs-sheet-res" class="form-input mini" value="0.0" min="0" max="500" step="10">
+              <span class="filter-unit">Ω/□</span>
+            </div>
+          </div>
+
+          <div class="checkbox-row" style="margin-top: 4px;">
+            <input type="checkbox" id="abs-ground-backed" checked>
+            <label for="abs-ground-backed">PEC Ground Plane Backing</label>
+          </div>
+        </div>
+      </section>
+
+      <!-- Frequency Sweep Setup -->
+      <section class="panel-section">
+        <div class="section-title">Frequency Sweep</div>
+        <div class="rf-freq-inputs">
+          <input type="number" id="abs-fstart" class="form-input mini" value="1.0" step="0.2" min="0.1">
+          <span class="range-sep">to</span>
+          <input type="number" id="abs-fstop" class="form-input mini" value="6.0" step="0.2" min="0.2">
+          <span class="range-sep">| N:</span>
+          <input type="number" id="abs-npts" class="form-input mini" value="31" min="11" max="81">
+        </div>
+      </section>
+
+      <!-- Actions -->
+      <div class="rf-actions-group">
+        <button id="btn-run-absorber-sim" class="btn-primary full-width">
+          Run MoM Absorber Solve
+        </button>
+        <button id="btn-run-absorber-sweep" class="btn-secondary full-width">
+          Run 2D Fold Angle Sweep
+        </button>
+      </div>
+
+      <!-- Live Performance Metrics -->
+      <div class="card-subtitle" style="margin-top: 8px;">Absorption Performance Metrics</div>
+      <table class="rf-stats-table">
+        <tbody>
+          <tr><td>Resonant Frequency (f₀):</td><td id="abs-stat-f0" class="text-primary font-bold">—</td></tr>
+          <tr><td>Peak Absorption:</td><td id="abs-stat-peak-abs" class="text-success font-bold">—</td></tr>
+          <tr><td>Min Reflection (S11):</td><td id="abs-stat-s11">—</td></tr>
+          <tr><td>-10 dB Bandwidth:</td><td id="abs-stat-bw">—</td></tr>
+          <tr><td>Tuning Ratio:</td><td id="abs-stat-tuning">—</td></tr>
+          <tr><td>Conservation (R+T+A):</td><td id="abs-stat-energy">1.000000</td></tr>
+        </tbody>
+      </table>
+
+    </aside>
+
+    <!-- Absorber Main Workspace -->
+    <main class="viewport-area">
+
+      <div class="hud-stats-bar">
+        <div class="hud-chip"><span class="hud-label">Mode:</span> <span class="hud-val text-primary">Surface MoM RWG</span></div>
+        <div class="hud-chip"><span class="hud-label">Pattern:</span> <span id="abs-hud-pattern" class="hud-val">Miura-Ori</span></div>
+        <div class="hud-chip"><span class="hud-label">Envelope:</span> <span id="abs-hud-dims" class="hud-val">0 × 0 × 0 mm</span></div>
+        <div class="hud-chip"><span class="hud-label">Fold θ:</span> <span id="abs-hud-angle" class="hud-val">30.0°</span></div>
+        <div class="hud-chip"><span class="hud-label">Status:</span> <span id="abs-hud-status" class="hud-val text-success">Ready</span></div>
+      </div>
+
+      <div class="absorber-work-grid">
+        <!-- Top Left: 3D Metasurface with Surface Currents -->
+        <div class="viewport-box absorber-vp-3d">
+          <div class="viewport-header">
+            <span class="viewport-title">3D Folded Metasurface & Induced Surface Currents (Js)</span>
+            <div class="viewport-tools">
+              <button id="btn-abs-toggle-currents" class="btn-secondary mini">Currents: ON</button>
+              <button id="btn-abs-reset-3d" class="btn-secondary mini">Reset Cam</button>
+            </div>
+          </div>
+          <div id="abs-threejs-container" class="three-container"></div>
+        </div>
+
+        <!-- Top Right: Absorption Spectrum & Reflection S11 -->
+        <div class="viewport-box absorber-chart-box">
+          <div class="viewport-header">
+            <span class="viewport-title">Absorption Spectrum A(f) & Reflection S11(f)</span>
+            <div class="rf-zin-legend">
+              <span class="legend-chip" style="background:rgba(22, 163, 74, 0.2); color:#16a34a; border-color:#16a34a;">― Absorption A(f)</span>
+              <span class="legend-chip" style="background:rgba(2, 132, 199, 0.2); color:#0284c7; border-color:#0284c7;">┄ S11 [dB]</span>
+            </div>
+          </div>
+          <div class="rf-canvas-wrap">
+            <canvas id="abs-spectrum-canvas"></canvas>
+          </div>
+        </div>
+
+        <!-- Bottom: 2D Fold Angle Tuning Heatmap Matrix -->
+        <div class="viewport-box absorber-heatmap-box">
+          <div class="viewport-header">
+            <span class="viewport-title">2D Frequency Tuning Heatmap: Absorption A(θ, f) vs Fold Angle</span>
+            <span id="abs-heatmap-hover-info" class="rf-badge-res">Hover over heatmap to inspect (θ, f)</span>
+          </div>
+          <div class="heatmap-canvas-wrap">
+            <canvas id="abs-heatmap-canvas"></canvas>
+          </div>
+        </div>
+      </div>
+
+    </main>
+
+  </div>
+
+
+  <!-- =====================================================================
+       CONTAINER: MODE 4 — OPTIMIZATION & FABRICATION EXPORT
+       ===================================================================== -->
+  <div id="mode-optfab-container" class="app-container mode-view">
+
+    <aside class="sidebar">
+      <section class="panel-section">
+        <div class="section-title">Multi-Objective Optimization</div>
+        <div class="filter-inputs">
+          <div class="filter-row">
+            <span class="filter-label">Target Frequency</span>
+            <div class="filter-input-wrap">
+              <input type="number" id="opt-target-freq" class="form-input mini" value="2.45" step="0.05">
+              <span class="filter-unit">GHz</span>
+            </div>
+          </div>
+          <div class="filter-row">
+            <span class="filter-label">Min Absorption</span>
+            <div class="filter-input-wrap">
+              <input type="number" id="opt-min-abs" class="form-input mini" value="0.90" step="0.05" min="0.5" max="1.0">
+              <span class="filter-unit">ratio</span>
+            </div>
+          </div>
+          <div class="filter-row">
+            <span class="filter-label">Population Size</span>
+            <div class="filter-input-wrap">
+              <input type="number" id="opt-pop-size" class="form-input mini" value="16" min="8" max="50">
+            </div>
+          </div>
+          <div class="filter-row">
+            <span class="filter-label">Generations</span>
+            <div class="filter-input-wrap">
+              <input type="number" id="opt-generations" class="form-input mini" value="4" min="2" max="20">
+            </div>
+          </div>
+        </div>
+
+        <button id="btn-run-nsga2" class="btn-primary full-width" style="margin-top: 8px;">
+          Run NSGA-II Multi-Objective Search
+        </button>
+      </section>
+
+      <section class="panel-section">
+        <div class="section-title">Fabrication Release Package</div>
+        <div class="form-group">
+          <label class="form-label">Substrate Type</label>
+          <input type="text" id="fab-substrate-desc" class="form-input mini" value="Kapton Polyimide (0.5mm)">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Conductor Specification</label>
+          <input type="text" id="fab-conductor-desc" class="form-input mini" value="Rolled Annealed Copper (35 um)">
+        </div>
+
+        <button id="btn-export-fab-zip" class="btn-primary full-width" style="margin-top: 8px; background: #059669;">
+          Download Fabrication ZIP
+        </button>
+        <div class="rf-subtext" style="margin-top: 4px;">
+          Includes RS-274X Gerbers, DXF laser cut layers, 3D STL panels, BOM.csv, and DFM report.
+        </div>
+      </section>
+    </aside>
+
+    <main class="viewport-area">
+      <div class="hud-stats-bar">
+        <div class="hud-chip"><span class="hud-label">Optimization:</span> <span id="opt-hud-status" class="hud-val text-primary">Ready</span></div>
+        <div class="hud-chip"><span class="hud-label">Pareto Solutions:</span> <span id="opt-hud-pareto-count" class="hud-val">0</span></div>
+      </div>
+
+      <div class="opt-work-grid">
+        <!-- Pareto Chart -->
+        <div class="viewport-box">
+          <div class="viewport-header">
+            <span class="viewport-title">Pareto Optimal Frontier: Tuning Range vs Compactness</span>
+          </div>
+          <div class="rf-canvas-wrap">
+            <canvas id="opt-pareto-canvas"></canvas>
+          </div>
+        </div>
+
+        <!-- Pareto Table -->
+        <div class="viewport-box">
+          <div class="viewport-header">
+            <span class="viewport-title">Discovered Non-Dominated Solutions</span>
+          </div>
+          <div id="opt-pareto-table-wrap" class="pareto-table-wrap">
+            <table class="styled-table" id="opt-pareto-table">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Tuning Range</th>
+                  <th>Compactness</th>
+                  <th>Peak Abs</th>
+                  <th>Parameters</th>
+                </tr>
+              </thead>
+              <tbody id="opt-pareto-tbody">
+                <tr><td colspan="5" class="text-center text-muted">Run NSGA-II to generate Pareto solutions.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </main>
 
   </div>
