@@ -460,13 +460,15 @@ class OrigamiRequestHandler(BaseHTTPRequestHandler):
         sys.stderr.write(f"[RF Origami Studio] {args[0]} {args[1]}\n")
 
 
-def run_server(port: int = 8080, host: str = "127.0.0.1") -> None:
-    """Start local RF Origami Design Studio server."""
-    server_address = (host, port)
+def run_server(port: int | None = None, host: str | None = None) -> None:
+    """Start local or hosted RF Origami Design Studio server."""
+    actual_port = port if port is not None else int(os.environ.get("PORT", 8080))
+    actual_host = host if host is not None else os.environ.get("HOST", "127.0.0.1")
+    server_address = (actual_host, actual_port)
     httpd = HTTPServer(server_address, OrigamiRequestHandler)
     print("=" * 70, flush=True)
     print(f"  RF ORIGAMI DESIGN STUDIO", flush=True)
-    print(f"  Local Server Running: http://{host}:{port}", flush=True)
+    print(f"  Server Running: http://{actual_host}:{actual_port}", flush=True)
     print("  Press Ctrl+C to stop the server.", flush=True)
     print("=" * 70, flush=True)
     try:
@@ -477,8 +479,10 @@ def run_server(port: int = 8080, host: str = "127.0.0.1") -> None:
 
 
 if __name__ == "__main__":
+    default_port = int(os.environ.get("PORT", 8080))
+    default_host = os.environ.get("HOST", "127.0.0.1")
     parser = argparse.ArgumentParser(description="RF Origami Design Studio Web Server")
-    parser.add_argument("--port", type=int, default=8080, help="Port to listen on (default: 8080)")
-    parser.add_argument("--host", type=str, default="127.0.0.1", help="Host address (default: 127.0.0.1)")
+    parser.add_argument("--port", type=int, default=default_port, help=f"Port to listen on (default: {default_port})")
+    parser.add_argument("--host", type=str, default=default_host, help=f"Host address (default: {default_host})")
     args = parser.parse_args()
     run_server(port=args.port, host=args.host)

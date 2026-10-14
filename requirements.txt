@@ -1,0 +1,4 @@
+# RF Origami Design Studio
+# Core architecture is 100% self-contained with standard library.
+# Optional test runner:
+pytest>=7.0.0

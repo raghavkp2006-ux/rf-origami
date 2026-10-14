@@ -17,9 +17,12 @@ from rf_origami.web.server import run_server
 
 
 def main() -> None:
+    default_port = int(os.environ.get("PORT", 8080))
+    default_host = os.environ.get("HOST", "127.0.0.1")
+
     parser = argparse.ArgumentParser(description="RF Origami Design Studio")
-    parser.add_argument("--port", type=int, default=8080, help="Port to listen on (default: 8080)")
-    parser.add_argument("--host", type=str, default="127.0.0.1", help="Host address (default: 127.0.0.1)")
+    parser.add_argument("--port", type=int, default=default_port, help=f"Port to listen on (default: {default_port})")
+    parser.add_argument("--host", type=str, default=default_host, help=f"Host address (default: {default_host})")
     parser.add_argument("--no-browser", action="store_true", help="Do not automatically open the web browser")
     args = parser.parse_args()
 
