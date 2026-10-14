@@ -17,6 +17,8 @@ from rf_origami.web.service import OrigamiWebService
 
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+if not os.path.isdir(STATIC_DIR):
+    STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "public")
 
 
 class OrigamiRequestHandler(BaseHTTPRequestHandler):

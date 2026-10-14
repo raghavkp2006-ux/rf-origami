@@ -1,0 +1,1195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RF Origami Design Studio</title>
+  <link rel="stylesheet" href="styles.css">
+  <!-- Offline Three.js and OrbitControls -->
+  <script src="three.min.js"></script>
+  <script src="OrbitControls.js"></script>
+</head>
+<body>
+
+  <!-- Top Navigation Header -->
+  <header>
+    <div class="brand">
+      <span class="brand-title">RF Origami Studio</span>
+      <span class="brand-subtitle">Kinematic Exploration & Electromagnetic CEM Studio</span>
+    </div>
+
+    <!-- Mode Switcher Tabs -->
+    <div class="mode-tabs">
+      <button id="tab-btn-explorer" class="mode-tab-btn active">Generative Explorer</button>
+      <button id="tab-btn-reference" class="mode-tab-btn">Reference Patterns</button>
+      <button id="tab-btn-absorber" class="mode-tab-btn">Metasurface Absorber</button>
+      <button id="tab-btn-optfab" class="mode-tab-btn">Optimization & Fab</button>
+    </div>
+
+    <!-- Active Design Synchronization Indicator -->
+    <div id="sync-design-badge" class="sync-badge" title="Active design synchronized across all studio modules">
+      <span class="sync-icon">🔗</span>
+      <span id="sync-design-label">Sync: Miura-Ori (25×20mm, 35.0°)</span>
+    </div>
+
+    <!-- Standalone EM Benchmarks Button -->
+    <button id="btn-open-benchmarks" class="btn-secondary mini" title="View Standalone EM Validation Benchmarks">
+      EM Benchmarks
+    </button>
+  </header>
+
+  <!-- =====================================================================
+       MAIN CONTAINER: MODE 1 — GENERATIVE EXPLORER (PRIMARY)
+       ===================================================================== -->
+  <div id="mode-explorer-container" class="app-container mode-view active">
+
+    <!-- Explorer Left Sidebar -->
+    <aside class="sidebar">
+
+      <!-- 1. Design Parameters -->
+      <section class="panel-section">
+        <div class="section-title">Design Parameters</div>
+
+        <div class="form-group">
+          <label class="form-label" for="exp-family">Pattern Family</label>
+          <select id="exp-family" class="form-select">
+            <option value="modulated_miura">Modulated Miura Tessellation</option>
+            <option value="waterbomb">Waterbomb Radial Array</option>
+            <option value="yoshimura">Yoshimura Lattice</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Sample Count</label>
+          <div class="count-selector">
+            <button class="count-btn" data-count="10">10</button>
+            <button class="count-btn active" data-count="20">20</button>
+            <button class="count-btn" data-count="50">50</button>
+            <button class="count-btn" data-count="100">100</button>
+            <button class="count-btn" data-count="500">500</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="exp-seed">Random Seed</label>
+          <div class="input-with-button">
+            <input type="number" id="exp-seed" class="form-input" value="42" min="1" max="999999">
+            <button id="btn-seed-random" class="btn-secondary" title="Re-roll Seed">Randomize</button>
+          </div>
+        </div>
+
+        <div class="range-grid">
+          <div class="range-field">
+            <span class="range-label">Facet a [mm]</span>
+            <div class="range-inputs">
+              <input type="number" id="range-a-min" class="range-input" value="15.0" step="1">
+              <span class="range-sep">–</span>
+              <input type="number" id="range-a-max" class="range-input" value="45.0" step="1">
+            </div>
+          </div>
+
+          <div class="range-field">
+            <span class="range-label">Facet b [mm]</span>
+            <div class="range-inputs">
+              <input type="number" id="range-b-min" class="range-input" value="15.0" step="1">
+              <span class="range-sep">–</span>
+              <input type="number" id="range-b-max" class="range-input" value="45.0" step="1">
+            </div>
+          </div>
+
+          <div class="range-field">
+            <span class="range-label">Crease Angle γ [°]</span>
+            <div class="range-inputs">
+              <input type="number" id="range-gamma-min" class="range-input" value="35.0" step="1">
+              <span class="range-sep">–</span>
+              <input type="number" id="range-gamma-max" class="range-input" value="75.0" step="1">
+            </div>
+          </div>
+
+          <div class="range-field">
+            <span class="range-label">Unit Cells Nx</span>
+            <div class="range-inputs">
+              <input type="number" id="range-nx-min" class="range-input" value="1" min="1" max="5">
+              <span class="range-sep">–</span>
+              <input type="number" id="range-nx-max" class="range-input" value="3" min="1" max="5">
+            </div>
+          </div>
+
+          <div class="range-field">
+            <span class="range-label">Unit Cells Ny</span>
+            <div class="range-inputs">
+              <input type="number" id="range-ny-min" class="range-input" value="1" min="1" max="5">
+              <span class="range-sep">–</span>
+              <input type="number" id="range-ny-max" class="range-input" value="3" min="1" max="5">
+            </div>
+          </div>
+
+          <div class="range-field">
+            <span class="range-label">Fold Angle θ [°]</span>
+            <div class="range-inputs">
+              <input type="number" id="range-fold-min" class="range-input" value="20.0" step="1">
+              <span class="range-sep">–</span>
+              <input type="number" id="range-fold-max" class="range-input" value="70.0" step="1">
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. Constraints -->
+      <section class="panel-section">
+        <div class="section-title">Constraints</div>
+
+        <div class="checkbox-row">
+          <input type="checkbox" id="chk-flat-foldable" checked>
+          <label for="chk-flat-foldable">Flat-Foldable Only (Kawasaki & Maekawa)</label>
+        </div>
+
+        <div class="filter-inputs">
+          <div class="filter-row">
+            <span class="filter-label">Minimum Panel Area</span>
+            <div class="filter-input-wrap">
+              <input type="number" id="filter-min-area" class="form-input mini" value="40.0" step="5">
+              <span class="filter-unit">mm²</span>
+            </div>
+          </div>
+
+          <div class="filter-row">
+            <span class="filter-label">Minimum Crease Length</span>
+            <div class="filter-input-wrap">
+              <input type="number" id="filter-min-crease" class="form-input mini" value="8.0" step="1">
+              <span class="filter-unit">mm</span>
+            </div>
+          </div>
+
+          <div class="filter-row">
+            <span class="filter-label">Maximum Envelope</span>
+            <div class="filter-input-wrap">
+              <input type="number" id="filter-max-aperture" class="form-input mini" value="350.0" step="10">
+              <span class="filter-unit">mm</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. RF Parameters -->
+      <section class="panel-section">
+        <div class="section-title">RF Parameters</div>
+
+        <div class="filter-inputs">
+          <div class="filter-row">
+            <span class="filter-label">Target Frequency</span>
+            <div class="filter-input-wrap">
+              <input type="number" id="rf-target-freq" class="form-input mini" value="2.4" step="0.1">
+              <span class="filter-unit">GHz</span>
+            </div>
+          </div>
+
+          <div class="filter-row">
+            <span class="filter-label">Substrate Material</span>
+            <div class="filter-input-wrap">
+              <select id="insp-rf-substrate-global" class="form-select mini">
+                <option value="kapton" selected>Kapton (εr=3.4)</option>
+                <option value="fr4">FR-4 (εr=4.4)</option>
+                <option value="rogers_ro4003c">Rogers RO4003C (εr=3.55)</option>
+                <option value="air">Air (εr=1.0)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="filter-row">
+            <span class="filter-label">Conductor Material</span>
+            <div class="filter-input-wrap">
+              <select id="insp-rf-conductor-global" class="form-select mini">
+                <option value="copper" selected>Copper (σ=5.8e7)</option>
+                <option value="pec">PEC (Ideal)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="filter-row">
+            <span class="filter-label">Port Impedance</span>
+            <div class="filter-input-wrap">
+              <input type="number" class="form-input mini" value="50.0" step="5" readonly>
+              <span class="filter-unit">Ω</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="rf-subtext">
+          EM solver: experimental / research prototype (EFIE-MoM).
+        </div>
+      </section>
+
+      <!-- Primary Action: Generate Candidates -->
+      <button id="btn-run-explore" class="btn-primary full-width">
+        Generate Candidates
+      </button>
+
+      <!-- Counters -->
+      <div class="exploration-counters">
+        <div class="counter-item">
+          <span class="counter-label">Total</span>
+          <span id="counter-total" class="counter-val">0</span>
+        </div>
+        <div class="counter-item">
+          <span class="counter-label text-success">Feasible</span>
+          <span id="counter-valid" class="counter-val text-success">0</span>
+        </div>
+        <div class="counter-item">
+          <span class="counter-label text-danger">Rejected</span>
+          <span id="counter-rejected" class="counter-val text-danger">0</span>
+        </div>
+      </div>
+
+      <div id="rejection-breakdown" class="rejection-summary-text">
+        Ready for design space exploration.
+      </div>
+
+    </aside>
+
+    <!-- Explorer Main Workspace -->
+    <main class="viewport-area explorer-main">
+
+      <!-- Workspace Toolbar -->
+      <div class="explorer-toolbar">
+        <div class="view-switch-group">
+          <button id="btn-view-grid" class="view-toggle-btn active">Gallery Grid</button>
+          <button id="btn-view-scatter" class="view-toggle-btn">Scatter Plot</button>
+          <button id="btn-view-split" class="view-toggle-btn">Split View</button>
+        </div>
+
+        <div class="candidate-filters">
+          <div class="filter-pill-group">
+            <button class="filter-pill active" data-filter="all">All (<span id="pill-count-all">0</span>)</button>
+            <button class="filter-pill" data-filter="valid">Feasible (<span id="pill-count-valid">0</span>)</button>
+            <button class="filter-pill" data-filter="rejected">Rejected (<span id="pill-count-rej">0</span>)</button>
+          </div>
+
+          <div class="sort-select-wrap">
+            <span class="sort-label">Sort:</span>
+            <select id="cand-sort-select" class="form-select mini">
+              <option value="compactness_asc">Compactness (Most Compact)</option>
+              <option value="area_desc">Surface Area (Largest)</option>
+              <option value="faces_desc">Complexity (Most Faces)</option>
+              <option value="id_asc">Candidate ID</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Visual Exploration Display -->
+      <div id="explorer-display-area" class="explorer-display-area view-grid-mode">
+
+        <!-- Candidate Gallery Grid -->
+        <div id="candidate-gallery-view" class="candidate-gallery">
+          <div id="candidate-cards-container" class="candidate-cards-grid">
+            <div class="empty-state">
+              <div class="empty-title">Ready for Design Space Exploration</div>
+              <div class="empty-desc">Click "Generate Candidates" in the sidebar to sample candidate crease patterns.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2D Design Space Scatter Plot -->
+        <div id="scatter-plot-container" class="scatter-container">
+          <div class="scatter-header">
+            <span class="scatter-title">Design Space: Aspect Ratio (a/b) vs Folded Compactness</span>
+            <div class="scatter-legend">
+              <span class="legend-item"><span class="legend-dot dot-valid"></span> Feasible</span>
+              <span class="legend-item"><span class="legend-dot dot-rej"></span> Rejected</span>
+              <span class="legend-item"><span class="legend-dot dot-selected"></span> Selected</span>
+            </div>
+          </div>
+          <div class="scatter-canvas-wrap">
+            <canvas id="scatter-canvas"></canvas>
+            <div id="scatter-tooltip" class="scatter-tooltip"></div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Candidate Inspector Deck -->
+      <div id="candidate-inspector" class="candidate-inspector">
+
+        <div class="inspector-header">
+          <div class="inspector-identity">
+            <span class="insp-title" id="insp-cand-id">CAND-001</span>
+            <span id="insp-cand-status" class="status-tag tag-valid">Feasible</span>
+            <span id="insp-cand-params" class="insp-meta">a=25.0mm, b=20.0mm, γ=60.0°, 2×2</span>
+          </div>
+
+          <!-- Inspector Tabs -->
+          <div class="insp-mode-tabs">
+            <button id="btn-insp-tab-geom" class="insp-tab-btn active">3D Fold & Creases</button>
+            <button id="btn-insp-tab-rf" class="insp-tab-btn">RF Analysis</button>
+          </div>
+
+          <!-- Fold Angle Slider -->
+          <div class="insp-fold-control">
+            <span class="insp-slider-label">Fold Angle:</span>
+            <input type="range" id="insp-fold-slider" class="insp-slider" min="0" max="85" step="0.5" value="35">
+            <span id="insp-fold-val" class="insp-slider-val">35.0°</span>
+          </div>
+
+          <div class="inspector-actions">
+            <button id="btn-insp-send-ref" class="btn-primary mini" title="Send this candidate to Reference Patterns Studio">→ Ref Studio</button>
+            <button id="btn-insp-send-abs" class="btn-primary mini" title="Send this candidate to Metasurface Absorber Studio">→ Absorber</button>
+            <button id="btn-insp-send-opt" class="btn-secondary mini" title="Send to Optimization & Fab Studio">→ Fab</button>
+            <button id="btn-export-fold" class="btn-secondary mini" title="Download compliant FOLD file for Origami Simulator">Export .FOLD</button>
+            <button id="btn-export-obj" class="btn-secondary mini" title="Download OBJ file">Export .OBJ</button>
+            <button id="btn-close-inspector" class="btn-close" title="Close Panel">×</button>
+          </div>
+        </div>
+
+        <!-- VIEW A: 3D Folded Mesh + 2D Crease Pattern -->
+        <div id="insp-geometry-view" class="inspector-viewports">
+
+          <!-- 3D Folded Mesh View -->
+          <div class="inspector-vp-box">
+            <div class="viewport-header">
+              <span class="viewport-title">3D Folded Geometry</span>
+              <div class="viewport-tools">
+                <button id="btn-insp-strain" class="btn-secondary mini" title="Toggle Origami Simulator strain heatmap">⚡ Strain: OFF</button>
+                <button id="btn-insp-wireframe" class="btn-secondary mini">Edges: ON</button>
+                <button id="btn-insp-reset3d" class="btn-secondary mini">Reset View</button>
+              </div>
+            </div>
+            <div id="inspector-threejs-container" class="three-container">
+              <!-- Origami Simulator Strain Heatmap HUD Overlay -->
+              <div id="insp-strain-overlay" class="strain-overlay hidden">
+                <div class="strain-overlay-header">
+                  <span class="strain-title">Origami Simulator Strain</span>
+                  <span id="insp-strain-status" class="strain-badge pass">Safe (Elastic)</span>
+                </div>
+                <div class="strain-colorbar">
+                  <div class="strain-gradient-bar"></div>
+                  <div class="strain-colorbar-labels">
+                    <span>0.0%</span>
+                    <span>2.0%</span>
+                    <span>4.0%</span>
+                    <span>6.0%</span>
+                    <span>8.0%+</span>
+                  </div>
+                </div>
+                <div class="strain-metrics-grid">
+                  <div class="strain-stat">
+                    <span class="stat-lbl">Max Strain:</span>
+                    <span id="insp-strain-max" class="stat-val font-mono">0.00%</span>
+                  </div>
+                  <div class="strain-stat">
+                    <span class="stat-lbl">Mean Strain:</span>
+                    <span id="insp-strain-mean" class="stat-val font-mono">0.00%</span>
+                  </div>
+                  <div class="strain-stat">
+                    <span class="stat-lbl">Energy:</span>
+                    <span id="insp-strain-energy" class="stat-val font-mono">0.0 mJ</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2D Crease Pattern View -->
+          <div class="inspector-vp-box">
+            <div class="viewport-header">
+              <span class="viewport-title">2D Crease Pattern (Red: Mountain, Blue: Valley)</span>
+              <div class="viewport-tools">
+                <button id="btn-insp-reset2d" class="btn-secondary mini">Fit View</button>
+              </div>
+            </div>
+            <div id="inspector-crease-container" class="crease-container">
+              <canvas id="inspector-crease-canvas"></canvas>
+            </div>
+          </div>
+
+          <!-- Validation & Metrics Card -->
+          <div class="inspector-sidebar-card">
+            <div class="card-subtitle">Geometric Validation</div>
+            <div class="val-mini-list">
+              <div class="val-mini-item"><span id="insp-val-kawasaki" class="val-icon pass">✓</span> Kawasaki: <span id="insp-val-kawasaki-txt" class="val-detail">Pass</span></div>
+              <div class="val-mini-item"><span id="insp-val-maekawa" class="val-icon pass">✓</span> Maekawa: <span id="insp-val-maekawa-txt" class="val-detail">Pass</span></div>
+              <div class="val-mini-item"><span id="insp-val-isometry" class="val-icon pass">✓</span> Isometry: <span id="insp-val-isometry-txt" class="val-detail">Preserved</span></div>
+              <div class="val-mini-item"><span id="insp-val-area" class="val-icon pass">✓</span> Area: <span id="insp-val-area-txt" class="val-detail">Preserved</span></div>
+            </div>
+
+            <div class="card-subtitle" style="margin-top: 10px;">Geometry Metrics</div>
+            <table class="rf-stats-table">
+              <tbody>
+                <tr><td>Vertices / Faces:</td><td id="insp-stat-mesh">0 / 0</td></tr>
+                <tr><td>Surface Area:</td><td id="insp-stat-area">0.0 mm²</td></tr>
+                <tr><td>Folded Envelope:</td><td id="insp-stat-dims">0 × 0 × 0 mm</td></tr>
+                <tr><td>Compactness Ratio:</td><td id="insp-stat-compact">0.000</td></tr>
+                <tr><td>Est. λ/2 Resonance:</td><td id="insp-stat-f0">—</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+        </div>
+
+        <!-- VIEW B: RF Analysis (MoM Solver & S-Parameters) -->
+        <div id="insp-rf-view" class="inspector-rf-viewports" style="display: none;">
+
+          <div class="rf-charts-container">
+            <!-- S11 Return Loss Canvas -->
+            <div class="rf-chart-box">
+              <div class="rf-chart-header">
+                <span class="rf-chart-title">Return Loss: S11 [dB] vs Frequency [GHz]</span>
+                <span id="rf-resonance-badge" class="rf-badge-res">Resonance: —</span>
+              </div>
+              <div class="rf-canvas-wrap">
+                <canvas id="rf-s11-canvas"></canvas>
+              </div>
+            </div>
+
+            <!-- Input Impedance Zin Canvas -->
+            <div class="rf-chart-box">
+              <div class="rf-chart-header">
+                <span class="rf-chart-title">Input Impedance: Rin (Real) & Xin (Imag) [Ω]</span>
+                <div class="rf-zin-legend">
+                  <span class="legend-chip chip-rin">― Rin (Real)</span>
+                  <span class="legend-chip chip-xin">┄ Xin (Imag)</span>
+                </div>
+              </div>
+              <div class="rf-canvas-wrap">
+                <canvas id="rf-zin-canvas"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- RF Controls & Live Numerical Metrics Sidebar -->
+          <div class="inspector-rf-sidebar">
+            <div class="card-subtitle">EM Solver Configuration (MoM)</div>
+
+            <div class="rf-control-row">
+              <span class="rf-control-label">Substrate</span>
+              <select id="insp-rf-substrate" class="form-select mini">
+                <option value="kapton" selected>Kapton (εr=3.4, tanδ=0.002)</option>
+                <option value="fr4">FR-4 (εr=4.4, tanδ=0.02)</option>
+                <option value="rogers_ro4003c">Rogers RO4003C (εr=3.55, tanδ=0.0027)</option>
+                <option value="air">Air (εr=1.0, tanδ=0.0)</option>
+              </select>
+            </div>
+
+            <div class="rf-control-row">
+              <span class="rf-control-label">Conductor</span>
+              <select id="insp-rf-conductor" class="form-select mini">
+                <option value="copper" selected>Copper (σ=5.8e7 S/m)</option>
+                <option value="pec">PEC (Ideal)</option>
+              </select>
+            </div>
+
+            <div class="rf-control-row">
+              <span class="rf-control-label">Frequency Range [GHz]</span>
+              <div class="rf-freq-inputs">
+                <input type="number" id="insp-rf-fstart" class="form-input mini" value="1.0" step="0.2" min="0.1">
+                <span class="range-sep">to</span>
+                <input type="number" id="insp-rf-fstop" class="form-input mini" value="6.0" step="0.2" min="0.2">
+                <span class="range-sep">| N:</span>
+                <input type="number" id="insp-rf-npts" class="form-input mini" value="25" min="7" max="81">
+              </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="rf-actions-group">
+              <button id="btn-run-mom-sim" class="btn-primary full-width">
+                Run EM Simulation
+              </button>
+              <button id="btn-run-fold-sweep" class="btn-secondary full-width">
+                Sweep Fold Angle
+              </button>
+            </div>
+
+            <!-- Live Numerical Antenna Metrics Dashboard -->
+            <div class="card-subtitle" style="margin-top: 6px;">Antenna Metrics (Numerical MoM)</div>
+            <table class="rf-stats-table">
+              <tbody>
+                <tr><td>Resonance (f₀):</td><td id="rf-stat-f0" class="text-primary font-bold">—</td></tr>
+                <tr><td>Min S11:</td><td id="rf-stat-s11">—</td></tr>
+                <tr><td>VSWR at f₀:</td><td id="rf-stat-vswr">—</td></tr>
+                <tr><td>-10 dB Bandwidth:</td><td id="rf-stat-bw">—</td></tr>
+                <tr><td>Input Zin (f₀):</td><td id="rf-stat-zin">—</td></tr>
+                <tr><td>Segments:</td><td id="rf-stat-segments">—</td></tr>
+                <tr><td>Status:</td><td id="rf-stat-engine" class="text-muted">Experimental / Not validated</td></tr>
+              </tbody>
+            </table>
+
+            <!-- Fold Angle Sweep Results Table -->
+            <div id="rf-fold-sweep-summary" class="rf-fold-sweep-box" style="display: none;">
+              <div class="card-subtitle">Fold Angle Frequency Tuning</div>
+              <div id="rf-fold-sweep-content" class="rf-fold-sweep-text"></div>
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- Bottom Status Bar -->
+      <div class="status-indicator">
+        <span class="status-dot"></span>
+        <span id="status-text">Ready</span>
+      </div>
+
+    </main>
+
+  </div>
+
+
+  <!-- =====================================================================
+       CONTAINER: MODE 2 — REFERENCE PATTERNS
+       ===================================================================== -->
+  <div id="mode-reference-container" class="app-container mode-view">
+
+    <!-- Reference Left Sidebar -->
+    <aside class="sidebar">
+
+      <!-- Pattern Selector -->
+      <section class="panel-section">
+        <div class="section-title">Classical Pattern</div>
+        <div class="pattern-grid">
+          <button class="pattern-btn active" data-pattern="miura_ori">Miura-Ori</button>
+          <button class="pattern-btn" data-pattern="degree4_vertex">Degree-4 Vertex</button>
+          <button class="pattern-btn" data-pattern="waterbomb">Waterbomb</button>
+          <button class="pattern-btn" data-pattern="yoshimura">Yoshimura</button>
+        </div>
+      </section>
+
+      <!-- Parameter Panel -->
+      <section class="panel-section">
+        <div class="section-title">Parameters</div>
+        <div id="ref-param-container" class="param-list">
+          <!-- Populated dynamically -->
+        </div>
+
+        <button id="btn-ref-generate" class="btn-primary full-width" style="margin-top: 8px;">
+          Recompute Pattern
+        </button>
+      </section>
+
+      <!-- Fold Angle Slider -->
+      <section class="panel-section">
+        <div class="fold-slider-container">
+          <div class="fold-header">
+            <span class="fold-title">Fold Angle (θ)</span>
+            <span id="ref-fold-readout" class="fold-readout">35.0°</span>
+          </div>
+          <input type="range" id="ref-fold-slider" class="fold-slider" min="0" max="85" step="0.5" value="35">
+          <div class="fold-ticks">
+            <span>0° (Flat)</span>
+            <span>45°</span>
+            <span>85° (Folded)</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- RF Material Tagging Panel -->
+      <section class="panel-section">
+        <div class="section-title">RF Material Assignment</div>
+
+        <div class="material-palette">
+          <div class="material-chip active" data-material="conductor">
+            <span class="chip-dot dot-conductor"></span>
+            <span>Conductor</span>
+          </div>
+          <div class="material-chip" data-material="substrate">
+            <span class="chip-dot dot-substrate"></span>
+            <span>Substrate</span>
+          </div>
+          <div class="material-chip" data-material="ground">
+            <span class="chip-dot dot-ground"></span>
+            <span>Ground</span>
+          </div>
+          <div class="material-chip" data-material="dielectric">
+            <span class="chip-dot dot-dielectric"></span>
+            <span>Dielectric</span>
+          </div>
+          <div class="material-chip" data-material="keepout">
+            <span class="chip-dot dot-keepout"></span>
+            <span>Keep-out</span>
+          </div>
+        </div>
+
+        <table class="rf-stats-table">
+          <tbody>
+            <tr>
+              <td>Conductor Area:</td>
+              <td id="ref-stat-conductor-area">0.0 mm²</td>
+            </tr>
+            <tr>
+              <td>Ground Plane:</td>
+              <td id="ref-stat-ground-area">0.0 mm²</td>
+            </tr>
+            <tr>
+              <td>Substrate Area:</td>
+              <td id="ref-stat-substrate-area">0.0 mm²</td>
+            </tr>
+            <tr>
+              <td>Keep-out Area:</td>
+              <td id="ref-stat-keepout-area">0.0 mm²</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Reference Validation Panel -->
+      <section class="panel-section">
+        <div class="section-title">Geometric Verification</div>
+        <div class="validation-checklist">
+          <div class="val-item">
+            <span id="ref-val-icon-kawasaki" class="val-icon pass">✓</span>
+            <div class="val-text">
+              <div class="val-name">Kawasaki Condition</div>
+              <div id="ref-val-desc-kawasaki" class="val-detail">Checking...</div>
+            </div>
+          </div>
+          <div class="val-item">
+            <span id="ref-val-icon-maekawa" class="val-icon pass">✓</span>
+            <div class="val-text">
+              <div class="val-name">Maekawa Condition</div>
+              <div id="ref-val-desc-maekawa" class="val-detail">Checking...</div>
+            </div>
+          </div>
+          <div class="val-item">
+            <span id="ref-val-icon-edge" class="val-icon pass">✓</span>
+            <div class="val-text">
+              <div class="val-name">Edge Conservation</div>
+              <div id="ref-val-desc-edge" class="val-detail">Checking...</div>
+            </div>
+          </div>
+          <div class="val-item">
+            <span id="ref-val-icon-area" class="val-icon pass">✓</span>
+            <div class="val-text">
+              <div class="val-name">Area Conservation</div>
+              <div id="ref-val-desc-area" class="val-detail">Checking...</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Mechanical Strain Panel (Origami Simulator) -->
+      <section class="panel-section">
+        <div class="section-title" style="display:flex; justify-content:space-between; align-items:center;">
+          <span>Strain Characteristics</span>
+          <span id="ref-side-strain-badge" class="status-tag tag-valid" style="font-size:10px; padding:1px 6px;">Elastic</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <span style="font-size:11px; color:var(--text-secondary);">Simulator Heatmap:</span>
+          <button id="btn-ref-strain-toggle-side" class="btn-secondary mini">Enable Heatmap</button>
+        </div>
+        <table class="rf-stats-table">
+          <tbody>
+            <tr>
+              <td>Max Strain (εmax):</td>
+              <td id="ref-side-strain-max" class="font-mono">0.00%</td>
+            </tr>
+            <tr>
+              <td>Mean Model Strain:</td>
+              <td id="ref-side-strain-mean" class="font-mono">0.00%</td>
+            </tr>
+            <tr>
+              <td>Crease Strain Energy:</td>
+              <td id="ref-side-strain-energy" class="font-mono">0.0 mJ</td>
+            </tr>
+            <tr>
+              <td>Deformation State:</td>
+              <td id="ref-side-strain-state" class="text-success font-bold">Rigid Foldable</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+    </aside>
+
+    <!-- Reference Viewports -->
+    <main class="viewport-area">
+
+      <!-- HUD Stats Banner -->
+      <div class="hud-stats-bar">
+        <div class="hud-chip"><span class="hud-label">Pattern:</span> <span id="ref-active-pattern-badge" class="hud-val">Miura-Ori</span></div>
+        <div class="hud-chip"><span class="hud-label">Vertices:</span> <span id="ref-hud-vertices" class="hud-val">0</span></div>
+        <div class="hud-chip"><span class="hud-label">Faces:</span> <span id="ref-hud-faces" class="hud-val">0</span></div>
+        <div class="hud-chip"><span class="hud-label">Area:</span> <span id="ref-hud-area" class="hud-val">0.0 mm²</span></div>
+        <div class="hud-chip"><span class="hud-label">Envelope:</span> <span id="ref-hud-bounds" class="hud-val">0 × 0 × 0 mm</span></div>
+        <div class="hud-chip"><span class="hud-label">Fold:</span> <span id="ref-hud-angle" class="hud-val">35.0°</span></div>
+      </div>
+
+      <!-- Split Viewports -->
+      <div class="viewports-split">
+        <div class="viewport-box">
+          <div class="viewport-header">
+            <span class="viewport-title">3D Folded View (Red: Mountain Ridge, Blue: Valley Trough)</span>
+            <div class="viewport-tools">
+              <button id="btn-ref-strain" class="btn-secondary mini" title="Toggle Origami Simulator strain heatmap">⚡ Strain: OFF</button>
+              <button id="btn-ref-send-abs" class="btn-primary mini" title="Send this pattern & parameters to Metasurface Absorber">→ Send to Absorber</button>
+              <button id="btn-ref-export-fold" class="btn-secondary mini" title="Download compliant FOLD file for Origami Simulator">Export .FOLD</button>
+              <button id="btn-ref-export-obj" class="btn-secondary mini" title="Download OBJ file">Export .OBJ</button>
+              <button id="btn-ref-wireframe" class="btn-secondary mini">Creases: ON</button>
+              <button id="btn-ref-reset-cam" class="btn-secondary mini">Reset View</button>
+            </div>
+          </div>
+          <div id="ref-threejs-container" class="three-container">
+            <!-- Origami Simulator Strain Heatmap HUD Overlay -->
+            <div id="ref-strain-overlay" class="strain-overlay hidden">
+              <div class="strain-overlay-header">
+                <span class="strain-title">Origami Simulator Strain Analysis</span>
+                <span id="ref-strain-status" class="strain-badge pass">Safe (Elastic)</span>
+              </div>
+              <div class="strain-colorbar">
+                <div class="strain-gradient-bar"></div>
+                <div class="strain-colorbar-labels">
+                  <span>0.0%</span>
+                  <span>2.0%</span>
+                  <span>4.0%</span>
+                  <span>6.0%</span>
+                  <span>8.0%+</span>
+                </div>
+              </div>
+              <div class="strain-metrics-grid">
+                <div class="strain-stat">
+                  <span class="stat-lbl">Max Strain ε:</span>
+                  <span id="ref-strain-max" class="stat-val font-mono">0.00%</span>
+                </div>
+                <div class="strain-stat">
+                  <span class="stat-lbl">Mean Strain:</span>
+                  <span id="ref-strain-mean" class="stat-val font-mono">0.00%</span>
+                </div>
+                <div class="strain-stat">
+                  <span class="stat-lbl">Crease Energy:</span>
+                  <span id="ref-strain-energy" class="stat-val font-mono">0.0 mJ</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="viewport-box">
+          <div class="viewport-header">
+            <span class="viewport-title">2D Crease Pattern (Click face to assign active material)</span>
+            <div class="viewport-tools">
+              <button id="btn-ref-reset2d" class="btn-secondary mini">Fit View</button>
+            </div>
+          </div>
+          <div id="ref-crease-container" class="crease-container">
+            <canvas id="ref-crease-canvas"></canvas>
+          </div>
+        </div>
+      </div>
+
+    </main>
+
+  </div>
+
+
+  <!-- =====================================================================
+       CONTAINER: MODE 3 — METASURFACE ABSORBER STUDIO
+       ===================================================================== -->
+  <div id="mode-absorber-container" class="app-container mode-view">
+
+    <!-- Absorber Left Sidebar -->
+    <aside class="sidebar">
+
+      <!-- Metasurface Geometry Selection -->
+      <section class="panel-section">
+        <div class="section-title">Metasurface Geometry</div>
+        <div class="form-group">
+          <label class="form-label" for="abs-pattern-type">Origami Unit Pattern</label>
+          <select id="abs-pattern-type" class="form-select">
+            <option value="miura_ori" selected>Miura-Ori Tessellation</option>
+            <option value="degree4_vertex">Degree-4 Vertex</option>
+            <option value="waterbomb">Waterbomb Pattern</option>
+            <option value="yoshimura">Yoshimura Lattice</option>
+          </select>
+        </div>
+
+        <!-- Synchronized Unit Cell Parameters -->
+        <div class="range-grid" style="margin-bottom: 8px;">
+          <div class="range-field">
+            <span class="range-label">Facet a [mm]</span>
+            <input type="number" id="abs-param-a" class="form-input mini" value="25.0" step="1">
+          </div>
+          <div class="range-field">
+            <span class="range-label">Facet b [mm]</span>
+            <input type="number" id="abs-param-b" class="form-input mini" value="20.0" step="1">
+          </div>
+          <div class="range-field">
+            <span class="range-label">γ [°]</span>
+            <input type="number" id="abs-param-gamma" class="form-input mini" value="60.0" step="1">
+          </div>
+          <div class="range-field">
+            <span class="range-label">Nx × Ny</span>
+            <div style="display:flex; gap:4px; align-items:center;">
+              <input type="number" id="abs-param-nx" class="form-input mini" value="2" min="1" max="6" style="width:45px;">
+              <span class="range-sep">×</span>
+              <input type="number" id="abs-param-ny" class="form-input mini" value="2" min="1" max="6" style="width:45px;">
+            </div>
+          </div>
+        </div>
+
+        <button id="btn-abs-sync-active" class="btn-secondary mini full-width" style="margin-bottom: 8px;" title="Copy parameters from active Explorer candidate or Reference pattern">
+          ↺ Sync from Active Design
+        </button>
+
+        <div class="fold-slider-container">
+          <div class="fold-header">
+            <span class="fold-title">Fold Angle (θ)</span>
+            <span id="abs-fold-readout" class="fold-readout">30.0°</span>
+          </div>
+          <input type="range" id="abs-fold-slider" class="fold-slider" min="0" max="75" step="0.5" value="30">
+          <div class="fold-ticks">
+            <span>0° (Flat)</span>
+            <span>35°</span>
+            <span>75° (Folded)</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- EM Plane Wave Excitation -->
+      <section class="panel-section">
+        <div class="section-title">Plane Wave Excitation</div>
+
+        <div class="form-group">
+          <label class="form-label" for="abs-pol-select">Polarization State</label>
+          <select id="abs-pol-select" class="form-select">
+            <option value="linear_x" selected>Linear (X-Polarized)</option>
+            <option value="linear_y">Linear (Y-Polarized)</option>
+            <option value="te">TE (Transverse Electric)</option>
+            <option value="tm">TM (Transverse Magnetic)</option>
+            <option value="rhcp">Circular RHCP</option>
+            <option value="lhcp">Circular LHCP</option>
+          </select>
+        </div>
+
+        <div class="filter-inputs">
+          <div class="filter-row">
+            <span class="filter-label">Incidence Polar (θinc)</span>
+            <div class="filter-input-wrap">
+              <input type="number" id="abs-theta-inc" class="form-input mini" value="0.0" min="0" max="80" step="5">
+              <span class="filter-unit">°</span>
+            </div>
+          </div>
+
+          <div class="filter-row">
+            <span class="filter-label">Azimuth Angle (φinc)</span>
+            <div class="filter-input-wrap">
+              <input type="number" id="abs-phi-inc" class="form-input mini" value="0.0" min="0" max="360" step="15">
+              <span class="filter-unit">°</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Metasurface Material Stack -->
+      <section class="panel-section">
+        <div class="section-title">Metasurface Stack</div>
+
+        <div class="filter-inputs">
+          <div class="filter-row">
+            <span class="filter-label">Substrate Material</span>
+            <div class="filter-input-wrap">
+              <select id="abs-sub-select" class="form-select mini">
+                <option value="kapton" selected>Kapton (εr=3.4)</option>
+                <option value="fr4">FR-4 (εr=4.4)</option>
+                <option value="rogers_ro4003c">Rogers RO4003C (εr=3.55)</option>
+                <option value="air">Air (εr=1.0)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="filter-row">
+            <span class="filter-label">Substrate Thickness (h)</span>
+            <div class="filter-input-wrap">
+              <input type="number" id="abs-thickness" class="form-input mini" value="0.5" min="0.05" max="5.0" step="0.1">
+              <span class="filter-unit">mm</span>
+            </div>
+          </div>
+
+          <div class="filter-row">
+            <span class="filter-label">Conductor Material</span>
+            <div class="filter-input-wrap">
+              <select id="abs-cond-select" class="form-select mini">
+                <option value="copper" selected>Copper (σ=5.8e7)</option>
+                <option value="pec">PEC (Ideal)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="filter-row">
+            <span class="filter-label">Sheet Resistance (Rs)</span>
+            <div class="filter-input-wrap">
+              <input type="number" id="abs-sheet-res" class="form-input mini" value="0.0" min="0" max="500" step="10">
+              <span class="filter-unit">Ω/□</span>
+            </div>
+          </div>
+
+          <div class="checkbox-row" style="margin-top: 4px;">
+            <input type="checkbox" id="abs-ground-backed" checked>
+            <label for="abs-ground-backed">PEC Ground Plane Backing</label>
+          </div>
+        </div>
+      </section>
+
+      <!-- Frequency Sweep Setup -->
+      <section class="panel-section">
+        <div class="section-title">Frequency Sweep</div>
+        <div class="rf-freq-inputs">
+          <input type="number" id="abs-fstart" class="form-input mini" value="1.0" step="0.2" min="0.1">
+          <span class="range-sep">to</span>
+          <input type="number" id="abs-fstop" class="form-input mini" value="6.0" step="0.2" min="0.2">
+          <span class="range-sep">| N:</span>
+          <input type="number" id="abs-npts" class="form-input mini" value="31" min="11" max="81">
+        </div>
+      </section>
+
+      <!-- Actions -->
+      <div class="rf-actions-group">
+        <button id="btn-run-absorber-sim" class="btn-primary full-width">
+          Run MoM Absorber Solve
+        </button>
+        <button id="btn-run-absorber-sweep" class="btn-secondary full-width">
+          Run 2D Fold Angle Sweep
+        </button>
+      </div>
+
+      <!-- Live Performance Metrics -->
+      <div class="card-subtitle" style="margin-top: 8px;">Absorption Performance Metrics</div>
+      <table class="rf-stats-table">
+        <tbody>
+          <tr><td>Resonant Frequency (f₀):</td><td id="abs-stat-f0" class="text-primary font-bold">—</td></tr>
+          <tr><td>Peak Absorption:</td><td id="abs-stat-peak-abs" class="text-success font-bold">—</td></tr>
+          <tr><td>Min Reflection (S11):</td><td id="abs-stat-s11">—</td></tr>
+          <tr><td>-10 dB Bandwidth:</td><td id="abs-stat-bw">—</td></tr>
+          <tr><td>Tuning Ratio:</td><td id="abs-stat-tuning">—</td></tr>
+          <tr><td>Conservation (R+T+A):</td><td id="abs-stat-energy">1.000000</td></tr>
+        </tbody>
+      </table>
+
+    </aside>
+
+    <!-- Absorber Main Workspace -->
+    <main class="viewport-area">
+
+      <div class="hud-stats-bar">
+        <div class="hud-chip"><span class="hud-label">Mode:</span> <span class="hud-val text-primary">Surface MoM RWG</span></div>
+        <div class="hud-chip"><span class="hud-label">Pattern:</span> <span id="abs-hud-pattern" class="hud-val">Miura-Ori</span></div>
+        <div class="hud-chip"><span class="hud-label">Envelope:</span> <span id="abs-hud-dims" class="hud-val">0 × 0 × 0 mm</span></div>
+        <div class="hud-chip"><span class="hud-label">Fold θ:</span> <span id="abs-hud-angle" class="hud-val">30.0°</span></div>
+        <div class="hud-chip"><span class="hud-label">Status:</span> <span id="abs-hud-status" class="hud-val text-success">Ready</span></div>
+      </div>
+
+      <div class="absorber-work-grid">
+        <!-- Top Left: 3D Metasurface with Surface Currents -->
+        <div class="viewport-box absorber-vp-3d">
+          <div class="viewport-header">
+            <span class="viewport-title">3D Folded Metasurface & Induced Surface Currents (Js)</span>
+            <div class="viewport-tools">
+              <button id="btn-abs-export-fold" class="btn-secondary mini" title="Download compliant FOLD file for Origami Simulator">Export .FOLD</button>
+              <button id="btn-abs-export-obj" class="btn-secondary mini" title="Download OBJ file">Export .OBJ</button>
+              <button id="btn-abs-toggle-currents" class="btn-secondary mini">Currents: ON</button>
+              <button id="btn-abs-reset-3d" class="btn-secondary mini">Reset Cam</button>
+            </div>
+          </div>
+          <div id="abs-threejs-container" class="three-container"></div>
+        </div>
+
+        <!-- Top Right: Absorption Spectrum & Reflection S11 -->
+        <div class="viewport-box absorber-chart-box">
+          <div class="viewport-header">
+            <span class="viewport-title">Absorption Spectrum A(f) & Reflection S11(f)</span>
+            <div class="rf-zin-legend">
+              <span class="legend-chip" style="background:rgba(22, 163, 74, 0.2); color:#16a34a; border-color:#16a34a;">― Absorption A(f)</span>
+              <span class="legend-chip" style="background:rgba(2, 132, 199, 0.2); color:#0284c7; border-color:#0284c7;">┄ S11 [dB]</span>
+            </div>
+          </div>
+          <div class="rf-canvas-wrap">
+            <canvas id="abs-spectrum-canvas"></canvas>
+          </div>
+        </div>
+
+        <!-- Bottom: 2D Fold Angle Tuning Heatmap Matrix -->
+        <div class="viewport-box absorber-heatmap-box">
+          <div class="viewport-header">
+            <span class="viewport-title">2D Frequency Tuning Heatmap: Absorption A(θ, f) vs Fold Angle</span>
+            <span id="abs-heatmap-hover-info" class="rf-badge-res">Hover over heatmap to inspect (θ, f)</span>
+          </div>
+          <div class="heatmap-canvas-wrap">
+            <canvas id="abs-heatmap-canvas"></canvas>
+          </div>
+        </div>
+      </div>
+
+    </main>
+
+  </div>
+
+
+  <!-- =====================================================================
+       CONTAINER: MODE 4 — OPTIMIZATION & FABRICATION EXPORT
+       ===================================================================== -->
+  <div id="mode-optfab-container" class="app-container mode-view">
+
+    <aside class="sidebar">
+      <section class="panel-section">
+        <div class="section-title">Multi-Objective Optimization</div>
+        <div class="filter-inputs">
+          <div class="filter-row">
+            <span class="filter-label">Target Frequency</span>
+            <div class="filter-input-wrap">
+              <input type="number" id="opt-target-freq" class="form-input mini" value="2.45" step="0.05">
+              <span class="filter-unit">GHz</span>
+            </div>
+          </div>
+          <div class="filter-row">
+            <span class="filter-label">Min Absorption</span>
+            <div class="filter-input-wrap">
+              <input type="number" id="opt-min-abs" class="form-input mini" value="0.90" step="0.05" min="0.5" max="1.0">
+              <span class="filter-unit">ratio</span>
+            </div>
+          </div>
+          <div class="filter-row">
+            <span class="filter-label">Population Size</span>
+            <div class="filter-input-wrap">
+              <input type="number" id="opt-pop-size" class="form-input mini" value="16" min="8" max="50">
+            </div>
+          </div>
+          <div class="filter-row">
+            <span class="filter-label">Generations</span>
+            <div class="filter-input-wrap">
+              <input type="number" id="opt-generations" class="form-input mini" value="4" min="2" max="20">
+            </div>
+          </div>
+        </div>
+
+        <button id="btn-run-nsga2" class="btn-primary full-width" style="margin-top: 8px;">
+          Run NSGA-II Multi-Objective Search
+        </button>
+      </section>
+
+      <section class="panel-section">
+        <div class="section-title">Fabrication Release Package</div>
+        <div class="form-group">
+          <label class="form-label">Substrate Type</label>
+          <input type="text" id="fab-substrate-desc" class="form-input mini" value="Kapton Polyimide (0.5mm)">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Conductor Specification</label>
+          <input type="text" id="fab-conductor-desc" class="form-input mini" value="Rolled Annealed Copper (35 um)">
+        </div>
+
+        <button id="btn-export-fab-zip" class="btn-primary full-width" style="margin-top: 8px; background: #059669;">
+          Download Fabrication ZIP
+        </button>
+        <div class="rf-subtext" style="margin-top: 4px;">
+          Includes RS-274X Gerbers, DXF laser cut layers, 3D STL panels, BOM.csv, and DFM report.
+        </div>
+      </section>
+    </aside>
+
+    <main class="viewport-area">
+      <div class="hud-stats-bar">
+        <div class="hud-chip"><span class="hud-label">Optimization:</span> <span id="opt-hud-status" class="hud-val text-primary">Ready</span></div>
+        <div class="hud-chip"><span class="hud-label">Pareto Solutions:</span> <span id="opt-hud-pareto-count" class="hud-val">0</span></div>
+      </div>
+
+      <div class="opt-work-grid">
+        <!-- Pareto Chart -->
+        <div class="viewport-box">
+          <div class="viewport-header">
+            <span class="viewport-title">Pareto Optimal Frontier: Tuning Range vs Compactness</span>
+          </div>
+          <div class="rf-canvas-wrap">
+            <canvas id="opt-pareto-canvas"></canvas>
+          </div>
+        </div>
+
+        <!-- Pareto Table -->
+        <div class="viewport-box">
+          <div class="viewport-header">
+            <span class="viewport-title">Discovered Non-Dominated Solutions</span>
+          </div>
+          <div id="opt-pareto-table-wrap" class="pareto-table-wrap">
+            <table class="styled-table" id="opt-pareto-table">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Tuning Range</th>
+                  <th>Compactness</th>
+                  <th>Peak Abs</th>
+                  <th>Parameters</th>
+                </tr>
+              </thead>
+              <tbody id="opt-pareto-tbody">
+                <tr><td colspan="5" class="text-center text-muted">Run NSGA-II to generate Pareto solutions.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+
+  </div>
+
+  <!-- Standalone EM Benchmarks Modal Dialog -->
+  <div id="benchmark-modal" class="benchmark-modal-backdrop" style="display: none;">
+    <div class="benchmark-modal-dialog">
+      <div class="benchmark-modal-header">
+        <div class="benchmark-modal-title">
+          <span>Electromagnetic Validation Benchmarks</span>
+        </div>
+        <button id="btn-close-benchmarks" class="btn-close" title="Close Dialog">×</button>
+      </div>
+
+      <div class="benchmark-modal-body">
+        <!-- Benchmark 1: Free Space -->
+        <div class="benchmark-card" id="bench-card-freespace">
+          <div class="benchmark-card-top">
+            <span class="benchmark-card-name">1. Free-Space Wave Propagation</span>
+            <span id="bench-status-freespace" class="status-tag tag-valid">Pass</span>
+          </div>
+          <p class="bench-card-desc">Speed of light c = 1/√(ε₀μ₀) = 2.9979×10⁸ m/s, intrinsic wave impedance η₀ = √(μ₀/ε₀) ≈ 376.73 Ω.</p>
+          <div class="benchmark-metrics-row" id="bench-metrics-freespace">
+            <span>Speed of Light: <strong>299,792,458 m/s</strong></span>
+            <span>Wave Impedance: <strong>376.73 Ω</strong></span>
+            <span>Rel Error: <strong>&lt; 1e-6</strong></span>
+          </div>
+        </div>
+
+        <!-- Benchmark 2: Half-Wave Resonant Dipole -->
+        <div class="benchmark-card" id="bench-card-dipole">
+          <div class="benchmark-card-top">
+            <span class="benchmark-card-name">2. Resonant Half-Wave Dipole Antenna (L ≈ 0.46 λ at 2.4 GHz)</span>
+            <span id="bench-status-dipole" class="status-tag tag-valid">Pass</span>
+          </div>
+          <p class="bench-card-desc">Numerical Pocklington EFIE solve with Harrington pulse testing. Analytical benchmark: Rin ≈ 70 - 78 Ω, Xin ≈ 0 Ω.</p>
+          <div class="benchmark-metrics-row" id="bench-metrics-dipole">
+            <span>Simulated Zin: <strong id="bench-val-dipole-zin">78.6 + j15.2 Ω</strong></span>
+            <span>Return Loss S11: <strong id="bench-val-dipole-s11">-12.0 dB</strong></span>
+            <span>Segments: <strong>21 (MoM)</strong></span>
+          </div>
+        </div>
+
+        <!-- Benchmark 3: Quarter-Wave Monopole -->
+        <div class="benchmark-card" id="bench-card-monopole">
+          <div class="benchmark-card-top">
+            <span class="benchmark-card-name">3. Quarter-Wave Monopole over Infinite PEC Ground (L ≈ 0.23 λ at 2.4 GHz)</span>
+            <span id="bench-status-monopole" class="status-tag tag-valid">Pass</span>
+          </div>
+          <p class="bench-card-desc">Image theory solve: Zin,monopole = 0.5 × Zin,dipole ≈ 35 - 39 Ω.</p>
+          <div class="benchmark-metrics-row" id="bench-metrics-monopole">
+            <span>Simulated Zin: <strong id="bench-val-monopole-zin">39.3 + j7.6 Ω</strong></span>
+            <span>Theoretical Expected: <strong>35 - 39 Ω</strong></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="benchmark-modal-footer">
+        <span class="bench-footer-note">All numerical solves execute directly in our Python MoM solver engine. Zero commercial software dependencies.</span>
+        <button id="btn-retest-benchmarks" class="btn-secondary mini">Re-run Verification</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Application Logic -->
+  <script src="app.js"></script>
+</body>
+</html>
