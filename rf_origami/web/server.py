@@ -402,6 +402,28 @@ class OrigamiRequestHandler(BaseHTTPRequestHandler):
                 self._send_json({"error": str(e)}, status=500)
             return
 
+        if url_path == "/api/fold/export":
+            pattern_type = req_data.get("pattern_type", "miura_ori")
+            params = req_data.get("params", {})
+            fold_angle = float(req_data.get("fold_angle", 30.0))
+            as_folded = bool(req_data.get("as_folded", False))
+            title = req_data.get("title", None)
+
+            try:
+                fold_data = OrigamiWebService.export_fold_file(
+                    pattern_type=pattern_type,
+                    params=params,
+                    fold_angle_deg=fold_angle,
+                    as_folded=as_folded,
+                    title=title,
+                )
+                self._send_json(fold_data)
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                self._send_json({"error": str(e)}, status=500)
+            return
+
         if url_path in ("/api/generate", "/api/fold"):
             pattern_type = req_data.get("pattern_type", "miura_ori")
             params = req_data.get("params", {})

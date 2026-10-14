@@ -341,7 +341,50 @@ class OrigamiWebService:
                 "material_areas_mm2": mat_areas,
             },
             "validation": validation,
+            "fold_format": pattern.to_fold(title=f"{pattern_type}_origami_pattern"),
+            "fold_format_3d": pattern.to_fold(
+                title=f"{pattern_type}_origami_folded",
+                as_folded=True,
+                folded_coords=mesh.vertices,
+            ),
         }
+
+    @classmethod
+    def export_fold_file(
+        cls,
+        pattern_type: str,
+        params: Dict[str, Any],
+        fold_angle_deg: float = 30.0,
+        as_folded: bool = False,
+        title: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Generate and export a complete, compliant FOLD 1.1 JSON structure for simulators."""
+        key = pattern_type.lower().replace("-", "_").strip()
+        if key not in cls.PATTERN_REGISTRY:
+            key = "miura_ori"
+
+        generator_cls = cls.PATTERN_REGISTRY[key]["class"]
+        generator = generator_cls()
+        valid_keys = set(generator.default_parameters().keys())
+        clean_params = {k: v for k, v in params.items() if k in valid_keys}
+        pattern = generator.generate(**clean_params)
+
+        folded_coords = None
+        if as_folded:
+            mesh = FoldingEngine.fold(
+                pattern_type=key,
+                crease_pattern=pattern,
+                params=params,
+                fold_angle_deg=fold_angle_deg,
+            )
+            folded_coords = mesh.vertices
+
+        name = title or f"RF_{key.upper()}_{int(fold_angle_deg)}deg"
+        return pattern.to_fold(
+            title=name,
+            as_folded=as_folded,
+            folded_coords=folded_coords,
+        )
 
     @classmethod
     def get_available_materials(cls) -> List[Dict[str, Any]]:

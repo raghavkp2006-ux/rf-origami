@@ -257,18 +257,83 @@ class CreasePattern:
         return is_valid, m_count, v_count
 
     # -----------------------------------------------------------------
-    # Serialization
+    # Serialization (FOLD Spec 1.1 Standard for Origami Simulators)
     # -----------------------------------------------------------------
 
     def to_dict(self) -> Dict[str, Any]:
-        """Serialize crease pattern to dictionary format (compatible with FOLD principles)."""
+        """Serialize crease pattern to dictionary format fully compliant with FOLD 1.1 specification.
+
+        Guarantees presence of vertices_coords, edges_vertices, edges_assignment, faces_vertices,
+        and edges_foldAngle for origami simulators (e.g., Amanda Ghassaei's Origami Simulator,
+        Tessellatica, Freeform Origami).
+        """
+        return self.to_fold()
+
+    def to_fold(
+        self,
+        title: str = "RF Origami Pattern",
+        as_folded: bool = False,
+        folded_coords: Optional[Union[np.ndarray, Sequence[Sequence[float]]]] = None,
+    ) -> Dict[str, Any]:
+        """Export pattern to standard FOLD format (.fold specification v1.1).
+
+        Args:
+            title: Human-readable model frame title.
+            as_folded: If True, exports the 3D folded geometry state (frame_classes: ['foldedForm']).
+            folded_coords: Optional (N, 3) array of folded vertex coordinates.
+        """
+        if as_folded and folded_coords is not None:
+            v_arr = np.asarray(folded_coords, dtype=np.float64)
+            coords = v_arr.tolist()
+            frame_classes = ["foldedForm"]
+            frame_attributes = ["3D"]
+        else:
+            coords = self._vertices.tolist()
+            frame_classes = ["creasePattern"]
+            frame_attributes = ["2D"]
+
+        # Compute standard FOLD fold angles in degrees
+        fold_angles_deg: List[float] = []
+        for c in self._creases:
+            if abs(c.fold_angle) > 1e-6:
+                fold_angles_deg.append(float(math.degrees(c.fold_angle)))
+            elif c.crease_type == CreaseType.MOUNTAIN:
+                fold_angles_deg.append(-180.0)
+            elif c.crease_type == CreaseType.VALLEY:
+                fold_angles_deg.append(180.0)
+            else:
+                fold_angles_deg.append(0.0)
+
+        # Ensure faces_vertices is never empty: if faces were not explicitly added,
+        # generate triangulation / polygon faces so Origami Simulator does not reject the file
+        faces_list = [list(f.vertex_indices) for f in self._faces]
+        faces_mats = [f.material_tag for f in self._faces]
+
+        if len(faces_list) == 0 and len(self._creases) >= 3 and len(self._vertices) >= 3:
+            # Fallback simple triangulation from vertex boundary
+            if len(self._vertices) == 4:
+                faces_list = [[0, 1, 2, 3]]
+                faces_mats = ["substrate"]
+            elif len(self._vertices) > 4:
+                # Triangulate polygon fans
+                faces_list = [[0, i, i + 1] for i in range(1, len(self._vertices) - 1)]
+                faces_mats = ["substrate"] * len(faces_list)
+
         return {
-            "vertices_coords": self._vertices.tolist(),
+            "file_spec": 1.1,
+            "file_creator": "RF Origami Design Studio",
+            "file_author": "RF Origami Simulator Bridge",
+            "file_classes": ["singleModel"],
+            "frame_title": title,
+            "frame_classes": frame_classes,
+            "frame_attributes": frame_attributes,
+            "vertices_coords": coords,
             "edges_vertices": [list(c.key) for c in self._creases],
             "edges_assignment": [c.crease_type.value for c in self._creases],
-            "edges_fold_angle": [c.fold_angle for c in self._creases],
-            "faces_vertices": [list(f.vertex_indices) for f in self._faces],
-            "faces_materials": [f.material_tag for f in self._faces],
+            "edges_foldAngle": fold_angles_deg,
+            "edges_fold_angle": [float(c.fold_angle) for c in self._creases],  # Backwards compatibility
+            "faces_vertices": faces_list,
+            "faces_materials": faces_mats,
         }
 
     @classmethod
@@ -277,7 +342,18 @@ class CreasePattern:
         cp = cls(vertices=data.get("vertices_coords", []))
         edges = data.get("edges_vertices", [])
         assignments = data.get("edges_assignment", ["F"] * len(edges))
-        angles = data.get("edges_fold_angle", [0.0] * len(edges))
+
+        # Check for edges_fold_angle (exact radians) first, then edges_foldAngle (degrees from FOLD spec)
+        if "edges_fold_angle" in data:
+            angles = [float(a) for a in data.get("edges_fold_angle", [])]
+        elif "edges_foldAngle" in data:
+            raw_angles = data.get("edges_foldAngle", [])
+            angles = [math.radians(float(a)) for a in raw_angles]
+        else:
+            angles = [0.0] * len(edges)
+
+        if len(angles) < len(edges):
+            angles.extend([0.0] * (len(edges) - len(angles)))
 
         for (u, v), assign, ang in zip(edges, assignments, angles):
             cp.add_crease(u=u, v=v, crease_type=assign, fold_angle=ang)

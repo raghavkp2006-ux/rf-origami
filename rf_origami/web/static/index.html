@@ -14,8 +14,8 @@
   <!-- Top Navigation Header -->
   <header>
     <div class="brand">
-      <span class="brand-title">RF Origami Design Studio</span>
-      <span class="brand-subtitle">Computational Design & Kinematic Exploration for Foldable RF Structures</span>
+      <span class="brand-title">RF Origami Studio</span>
+      <span class="brand-subtitle">Kinematic Exploration & Electromagnetic CEM Studio</span>
     </div>
 
     <!-- Mode Switcher Tabs -->
@@ -26,23 +26,14 @@
       <button id="tab-btn-optfab" class="mode-tab-btn">Optimization & Fab</button>
     </div>
 
-    <!-- Workflow Indicators -->
-    <div class="workflow-pipeline">
-      <span class="stage-item active">Design Space</span>
-      <span class="stage-sep">|</span>
-      <span class="stage-item active">Generate</span>
-      <span class="stage-sep">|</span>
-      <span class="stage-item active">Validate</span>
-      <span class="stage-sep">|</span>
-      <span class="stage-item active">Explore</span>
-      <span class="stage-sep">|</span>
-      <span class="stage-item active">3D Fold</span>
-      <span class="stage-sep">|</span>
-      <span class="stage-item active">RF Model</span>
+    <!-- Active Design Synchronization Indicator -->
+    <div id="sync-design-badge" class="sync-badge" title="Active design synchronized across all studio modules">
+      <span class="sync-icon">🔗</span>
+      <span id="sync-design-label">Sync: Miura-Ori (25×20mm, 35.0°)</span>
     </div>
 
     <!-- Standalone EM Benchmarks Button -->
-    <button id="btn-open-benchmarks" class="btn-secondary" title="View Standalone EM Validation Benchmarks">
+    <button id="btn-open-benchmarks" class="btn-secondary mini" title="View Standalone EM Validation Benchmarks">
       EM Benchmarks
     </button>
   </header>
@@ -341,7 +332,10 @@
           </div>
 
           <div class="inspector-actions">
-            <button id="btn-export-fold" class="btn-secondary mini" title="Download FOLD file">Export .FOLD</button>
+            <button id="btn-insp-send-ref" class="btn-primary mini" title="Send this candidate to Reference Patterns Studio">→ Ref Studio</button>
+            <button id="btn-insp-send-abs" class="btn-primary mini" title="Send this candidate to Metasurface Absorber Studio">→ Absorber</button>
+            <button id="btn-insp-send-opt" class="btn-secondary mini" title="Send to Optimization & Fab Studio">→ Fab</button>
+            <button id="btn-export-fold" class="btn-secondary mini" title="Download compliant FOLD file for Origami Simulator">Export .FOLD</button>
             <button id="btn-export-obj" class="btn-secondary mini" title="Download OBJ file">Export .OBJ</button>
             <button id="btn-close-inspector" class="btn-close" title="Close Panel">×</button>
           </div>
@@ -355,11 +349,44 @@
             <div class="viewport-header">
               <span class="viewport-title">3D Folded Geometry</span>
               <div class="viewport-tools">
+                <button id="btn-insp-strain" class="btn-secondary mini" title="Toggle Origami Simulator strain heatmap">⚡ Strain: OFF</button>
                 <button id="btn-insp-wireframe" class="btn-secondary mini">Edges: ON</button>
                 <button id="btn-insp-reset3d" class="btn-secondary mini">Reset View</button>
               </div>
             </div>
-            <div id="inspector-threejs-container" class="three-container"></div>
+            <div id="inspector-threejs-container" class="three-container">
+              <!-- Origami Simulator Strain Heatmap HUD Overlay -->
+              <div id="insp-strain-overlay" class="strain-overlay hidden">
+                <div class="strain-overlay-header">
+                  <span class="strain-title">Origami Simulator Strain</span>
+                  <span id="insp-strain-status" class="strain-badge pass">Safe (Elastic)</span>
+                </div>
+                <div class="strain-colorbar">
+                  <div class="strain-gradient-bar"></div>
+                  <div class="strain-colorbar-labels">
+                    <span>0.0%</span>
+                    <span>2.0%</span>
+                    <span>4.0%</span>
+                    <span>6.0%</span>
+                    <span>8.0%+</span>
+                  </div>
+                </div>
+                <div class="strain-metrics-grid">
+                  <div class="strain-stat">
+                    <span class="stat-lbl">Max Strain:</span>
+                    <span id="insp-strain-max" class="stat-val font-mono">0.00%</span>
+                  </div>
+                  <div class="strain-stat">
+                    <span class="stat-lbl">Mean Strain:</span>
+                    <span id="insp-strain-mean" class="stat-val font-mono">0.00%</span>
+                  </div>
+                  <div class="strain-stat">
+                    <span class="stat-lbl">Energy:</span>
+                    <span id="insp-strain-energy" class="stat-val font-mono">0.0 mJ</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- 2D Crease Pattern View -->
@@ -640,6 +667,38 @@
         </div>
       </section>
 
+      <!-- Mechanical Strain Panel (Origami Simulator) -->
+      <section class="panel-section">
+        <div class="section-title" style="display:flex; justify-content:space-between; align-items:center;">
+          <span>Strain Characteristics</span>
+          <span id="ref-side-strain-badge" class="status-tag tag-valid" style="font-size:10px; padding:1px 6px;">Elastic</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <span style="font-size:11px; color:var(--text-secondary);">Simulator Heatmap:</span>
+          <button id="btn-ref-strain-toggle-side" class="btn-secondary mini">Enable Heatmap</button>
+        </div>
+        <table class="rf-stats-table">
+          <tbody>
+            <tr>
+              <td>Max Strain (εmax):</td>
+              <td id="ref-side-strain-max" class="font-mono">0.00%</td>
+            </tr>
+            <tr>
+              <td>Mean Model Strain:</td>
+              <td id="ref-side-strain-mean" class="font-mono">0.00%</td>
+            </tr>
+            <tr>
+              <td>Crease Strain Energy:</td>
+              <td id="ref-side-strain-energy" class="font-mono">0.0 mJ</td>
+            </tr>
+            <tr>
+              <td>Deformation State:</td>
+              <td id="ref-side-strain-state" class="text-success font-bold">Rigid Foldable</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
     </aside>
 
     <!-- Reference Viewports -->
@@ -659,18 +718,54 @@
       <div class="viewports-split">
         <div class="viewport-box">
           <div class="viewport-header">
-            <span class="viewport-title">3D Folded View</span>
+            <span class="viewport-title">3D Folded View (Red: Mountain Ridge, Blue: Valley Trough)</span>
             <div class="viewport-tools">
-              <button id="btn-ref-wireframe" class="btn-secondary mini">Edges: ON</button>
+              <button id="btn-ref-strain" class="btn-secondary mini" title="Toggle Origami Simulator strain heatmap">⚡ Strain: OFF</button>
+              <button id="btn-ref-send-abs" class="btn-primary mini" title="Send this pattern & parameters to Metasurface Absorber">→ Send to Absorber</button>
+              <button id="btn-ref-export-fold" class="btn-secondary mini" title="Download compliant FOLD file for Origami Simulator">Export .FOLD</button>
+              <button id="btn-ref-export-obj" class="btn-secondary mini" title="Download OBJ file">Export .OBJ</button>
+              <button id="btn-ref-wireframe" class="btn-secondary mini">Creases: ON</button>
               <button id="btn-ref-reset-cam" class="btn-secondary mini">Reset View</button>
             </div>
           </div>
-          <div id="ref-threejs-container" class="three-container"></div>
+          <div id="ref-threejs-container" class="three-container">
+            <!-- Origami Simulator Strain Heatmap HUD Overlay -->
+            <div id="ref-strain-overlay" class="strain-overlay hidden">
+              <div class="strain-overlay-header">
+                <span class="strain-title">Origami Simulator Strain Analysis</span>
+                <span id="ref-strain-status" class="strain-badge pass">Safe (Elastic)</span>
+              </div>
+              <div class="strain-colorbar">
+                <div class="strain-gradient-bar"></div>
+                <div class="strain-colorbar-labels">
+                  <span>0.0%</span>
+                  <span>2.0%</span>
+                  <span>4.0%</span>
+                  <span>6.0%</span>
+                  <span>8.0%+</span>
+                </div>
+              </div>
+              <div class="strain-metrics-grid">
+                <div class="strain-stat">
+                  <span class="stat-lbl">Max Strain ε:</span>
+                  <span id="ref-strain-max" class="stat-val font-mono">0.00%</span>
+                </div>
+                <div class="strain-stat">
+                  <span class="stat-lbl">Mean Strain:</span>
+                  <span id="ref-strain-mean" class="stat-val font-mono">0.00%</span>
+                </div>
+                <div class="strain-stat">
+                  <span class="stat-lbl">Crease Energy:</span>
+                  <span id="ref-strain-energy" class="stat-val font-mono">0.0 mJ</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="viewport-box">
           <div class="viewport-header">
-            <span class="viewport-title">2D Crease Pattern View</span>
+            <span class="viewport-title">2D Crease Pattern (Click face to assign active material)</span>
             <div class="viewport-tools">
               <button id="btn-ref-reset2d" class="btn-secondary mini">Fit View</button>
             </div>
@@ -706,6 +801,34 @@
             <option value="yoshimura">Yoshimura Lattice</option>
           </select>
         </div>
+
+        <!-- Synchronized Unit Cell Parameters -->
+        <div class="range-grid" style="margin-bottom: 8px;">
+          <div class="range-field">
+            <span class="range-label">Facet a [mm]</span>
+            <input type="number" id="abs-param-a" class="form-input mini" value="25.0" step="1">
+          </div>
+          <div class="range-field">
+            <span class="range-label">Facet b [mm]</span>
+            <input type="number" id="abs-param-b" class="form-input mini" value="20.0" step="1">
+          </div>
+          <div class="range-field">
+            <span class="range-label">γ [°]</span>
+            <input type="number" id="abs-param-gamma" class="form-input mini" value="60.0" step="1">
+          </div>
+          <div class="range-field">
+            <span class="range-label">Nx × Ny</span>
+            <div style="display:flex; gap:4px; align-items:center;">
+              <input type="number" id="abs-param-nx" class="form-input mini" value="2" min="1" max="6" style="width:45px;">
+              <span class="range-sep">×</span>
+              <input type="number" id="abs-param-ny" class="form-input mini" value="2" min="1" max="6" style="width:45px;">
+            </div>
+          </div>
+        </div>
+
+        <button id="btn-abs-sync-active" class="btn-secondary mini full-width" style="margin-bottom: 8px;" title="Copy parameters from active Explorer candidate or Reference pattern">
+          ↺ Sync from Active Design
+        </button>
 
         <div class="fold-slider-container">
           <div class="fold-header">
@@ -860,6 +983,8 @@
           <div class="viewport-header">
             <span class="viewport-title">3D Folded Metasurface & Induced Surface Currents (Js)</span>
             <div class="viewport-tools">
+              <button id="btn-abs-export-fold" class="btn-secondary mini" title="Download compliant FOLD file for Origami Simulator">Export .FOLD</button>
+              <button id="btn-abs-export-obj" class="btn-secondary mini" title="Download OBJ file">Export .OBJ</button>
               <button id="btn-abs-toggle-currents" class="btn-secondary mini">Currents: ON</button>
               <button id="btn-abs-reset-3d" class="btn-secondary mini">Reset Cam</button>
             </div>

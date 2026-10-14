@@ -10,8 +10,19 @@
 
 // Global Application State
 const appState = {
-  currentMode: "explorer", // "explorer" | "reference"
+  currentMode: "explorer", // "explorer" | "reference" | "absorber" | "optimization"
   
+  // Seamless Cross-Module Active Design State
+  activeDesign: {
+    source: "explorer", // "explorer" | "reference" | "absorber"
+    id: "Default (Miura-ori)",
+    pattern_type: "miura_ori",
+    family: "modulated_miura",
+    params: { a: 25.0, b: 20.0, gamma_deg: 60.0, num_cells_x: 2, num_cells_y: 2 },
+    foldAngle: 30.0,
+    modelData: null,
+  },
+
   // Explorer State
   explorer: {
     sampleCount: 20,
@@ -58,6 +69,7 @@ const appState = {
   // Metasurface Absorber State
   absorber: {
     patternType: "miura_ori",
+    params: { a: 25.0, b: 20.0, gamma_deg: 60.0, num_cells_x: 2, num_cells_y: 2 },
     foldAngle: 30.0,
     pol: "linear_x",
     thetaInc: 0.0,
@@ -84,6 +96,168 @@ const appState = {
     popSize: 16,
     generations: 4,
     paretoSolutions: [],
+  },
+
+  // Origami Simulator Inspired Strain State
+  strain: {
+    enabledRef: false,
+    enabledInsp: false,
+    maxThreshold: 0.08, // 8.0% max strain scale (engineering yield limit)
+    lastRefMetrics: null,
+    lastInspMetrics: null,
+  }
+};
+
+// =====================================================================
+// ORIGAMI SIMULATOR MECHANICAL STRAIN COMPUTATION & COLOR ENGINE
+// =====================================================================
+const OrigamiStrainEngine = {
+  // 5-stop Turbo/Jet Colormap matching OrigamiSimulator.org:
+  // 0.0 -> Blue, 0.25 -> Cyan, 0.5 -> Green, 0.75 -> Yellow, 1.0 -> Red
+  getStrainColor(strainVal, maxThreshold = 0.08) {
+    const s = Math.max(0.0, Math.min(1.0, strainVal / maxThreshold));
+    const col = new THREE.Color();
+    if (s <= 0.25) {
+      const t = s / 0.25;
+      col.setRGB(0.145 * (1 - t) + 0.024 * t, 0.388 * (1 - t) + 0.714 * t, 0.922 * (1 - t) + 0.831 * t);
+    } else if (s <= 0.5) {
+      const t = (s - 0.25) / 0.25;
+      col.setRGB(0.024 * (1 - t) + 0.133 * t, 0.714 * (1 - t) + 0.773 * t, 0.831 * (1 - t) + 0.369 * t);
+    } else if (s <= 0.75) {
+      const t = (s - 0.5) / 0.25;
+      col.setRGB(0.133 * (1 - t) + 0.918 * t, 0.773 * (1 - t) + 0.702 * t, 0.369 * (1 - t) + 0.031 * t);
+    } else {
+      const t = (s - 0.75) / 0.25;
+      col.setRGB(0.918 * (1 - t) + 0.937 * t, 0.702 * (1 - t) + 0.267 * t, 0.031 * (1 - t) + 0.267 * t);
+    }
+    return col;
+  },
+
+  computeStrains(meshData, creaseData, foldAngleDeg = 35.0) {
+    if (!meshData) return null;
+    const v3D = meshData.vertices || [];
+    const fList = meshData.faces || [];
+    const v2D = (creaseData && creaseData.vertices) || [];
+    const creases = (creaseData && creaseData.creases) || [];
+
+    const faceStrains = [];
+    let maxStrain = 0.0;
+    let sumStrain = 0.0;
+    let strainCount = 0;
+
+    // 1. Facet in-plane elongation strain (comparing 3D folded edge lengths to flat 2D edge lengths)
+    for (let fIdx = 0; fIdx < fList.length; fIdx++) {
+      const f = fList[fIdx];
+      let fStrainSum = 0.0;
+      let edgeCount = 0;
+
+      for (let i = 0; i < f.length; i++) {
+        const u = f[i];
+        const v = f[(i + 1) % f.length];
+
+        if (u < v3D.length && v < v3D.length && u < v2D.length && v < v2D.length) {
+          const p1_3d = v3D[u], p2_3d = v3D[v];
+          const p1_2d = v2D[u], p2_2d = v2D[v];
+
+          const L_3d = Math.hypot(p1_3d[0] - p2_3d[0], p1_3d[1] - p2_3d[1], p1_3d[2] - p2_3d[2]);
+          const L_2d = Math.hypot(p1_2d[0] - p2_2d[0], p1_2d[1] - p2_2d[1]);
+
+          if (L_2d > 1e-4) {
+            const e = Math.abs(L_3d - L_2d) / L_2d;
+            fStrainSum += e;
+            edgeCount++;
+            if (e > maxStrain) maxStrain = e;
+            sumStrain += e;
+            strainCount++;
+          }
+        }
+      }
+
+      const avgFaceStrain = edgeCount > 0 ? fStrainSum / edgeCount : 0.0;
+      faceStrains.push(avgFaceStrain);
+    }
+
+    // 2. Crease bending strain (outer fiber strain: t * theta / 2w)
+    const t_sub = 0.075; // 75 um Kapton polyimide substrate
+    const w_crease = 0.75; // 0.75 mm crease hinge zone
+    const foldRad = (Math.abs(foldAngleDeg) * Math.PI) / 180.0;
+    const creaseBendingStrain = (t_sub * foldRad) / (2.0 * w_crease);
+
+    if (creaseBendingStrain > maxStrain) maxStrain = creaseBendingStrain;
+    sumStrain += creaseBendingStrain * Math.max(1, creases.length);
+    strainCount += Math.max(1, creases.length);
+
+    const meanStrain = strainCount > 0 ? sumStrain / strainCount : 0.0;
+
+    // Strain energy U = 1/2 k * theta^2
+    const k_rot = 120.0; // mJ / rad^2
+    const strainEnergy = 0.5 * k_rot * Math.pow(foldRad, 2) * Math.max(1, creases.length / 4.0);
+
+    return {
+      faceStrains,
+      creaseBendingStrain,
+      maxStrain,
+      meanStrain,
+      strainEnergy,
+    };
+  },
+
+  updateHUD(prefix, metrics) {
+    if (!metrics) return;
+    const maxPct = (metrics.maxStrain * 100).toFixed(2) + "%";
+    const meanPct = (metrics.meanStrain * 100).toFixed(2) + "%";
+    const energyStr = metrics.strainEnergy.toFixed(1) + " mJ";
+
+    const elMax = document.getElementById(`${prefix}-strain-max`);
+    if (elMax) elMax.textContent = maxPct;
+    const elMean = document.getElementById(`${prefix}-strain-mean`);
+    if (elMean) elMean.textContent = meanPct;
+    const elEnergy = document.getElementById(`${prefix}-strain-energy`);
+    if (elEnergy) elEnergy.textContent = energyStr;
+
+    const elStatus = document.getElementById(`${prefix}-strain-status`);
+    if (elStatus) {
+      if (metrics.maxStrain > 0.065) {
+        elStatus.className = "strain-badge danger";
+        elStatus.textContent = "High Strain (Yield Risk)";
+      } else if (metrics.maxStrain > 0.035) {
+        elStatus.className = "strain-badge warning";
+        elStatus.textContent = "Moderate (Hinge Bending)";
+      } else {
+        elStatus.className = "strain-badge pass";
+        elStatus.textContent = "Safe (Elastic)";
+      }
+    }
+
+    if (prefix === "ref") {
+      const sideMax = document.getElementById("ref-side-strain-max");
+      if (sideMax) sideMax.textContent = maxPct;
+      const sideMean = document.getElementById("ref-side-strain-mean");
+      if (sideMean) sideMean.textContent = meanPct;
+      const sideEnergy = document.getElementById("ref-side-strain-energy");
+      if (sideEnergy) sideEnergy.textContent = energyStr;
+
+      const sideBadge = document.getElementById("ref-side-strain-badge");
+      const sideState = document.getElementById("ref-side-strain-state");
+      if (sideBadge && sideState) {
+        if (metrics.maxStrain > 0.065) {
+          sideBadge.className = "status-tag tag-rej";
+          sideBadge.textContent = "Yield Risk";
+          sideState.className = "text-danger font-bold";
+          sideState.textContent = "Plastic Crease Bending";
+        } else if (metrics.maxStrain > 0.035) {
+          sideBadge.className = "status-tag";
+          sideBadge.textContent = "Moderate";
+          sideState.className = "text-warning font-bold";
+          sideState.textContent = "Hinge Bending Concentration";
+        } else {
+          sideBadge.className = "status-tag tag-valid";
+          sideBadge.textContent = "Elastic";
+          sideState.className = "text-success font-bold";
+          sideState.textContent = "Rigid Foldable / Elastic";
+        }
+      }
+    }
   }
 };
 
@@ -120,7 +294,84 @@ document.addEventListener("DOMContentLoaded", () => {
   
   // Also load reference patterns catalog in background
   loadReferenceCatalog();
+
+  // Initialize sync badge
+  updateSyncBadge();
 });
+
+function updateSyncBadge() {
+  const badge = document.getElementById("sync-design-badge");
+  const label = document.getElementById("sync-design-label") || document.getElementById("sync-badge-text");
+  if (!label || !appState.activeDesign) return;
+  const ad = appState.activeDesign;
+  const pName = (ad.pattern_type || "Origami").replace(/_/g, " ");
+  const pCap = pName.charAt(0).toUpperCase() + pName.slice(1);
+  const foldStr = ad.foldAngle !== undefined ? `${ad.foldAngle.toFixed(1)}°` : "30.0°";
+  const p = ad.params || {};
+  const dimStr = p.a && p.b ? `${p.a}×${p.b}mm` : "";
+  label.textContent = `Sync: ${pCap} ${dimStr ? `(${dimStr}, ${foldStr})` : `(${foldStr})`}`;
+  if (badge) {
+    badge.classList.add("updated");
+    setTimeout(() => badge.classList.remove("updated"), 600);
+  }
+}
+
+function syncDesignToAllSections(source, data) {
+  appState.activeDesign = {
+    source: source,
+    id: data.id || "Active Model",
+    pattern_type: data.pattern_type || "miura_ori",
+    family: data.family || "modulated_miura",
+    params: { ...(data.params || {}) },
+    foldAngle: data.foldAngle !== undefined ? data.foldAngle : (data.fold_angle || 30.0),
+    modelData: data.modelData || null,
+  };
+  updateSyncBadge();
+}
+
+function syncReferenceFromActiveDesign() {
+  if (!appState.activeDesign) {
+    if (!appState.reference.modelData) {
+      generateReferencePattern();
+    }
+    return;
+  }
+
+  const ad = appState.activeDesign;
+  const ptype = ad.pattern_type || "miura_ori";
+  appState.reference.currentPattern = ptype;
+
+  // Copy parameters
+  if (ad.params) {
+    appState.reference.params = { ...(appState.reference.params || {}), ...ad.params };
+    if (ad.params.gamma !== undefined && appState.reference.params.gamma_deg === undefined) {
+      appState.reference.params.gamma_deg = ad.params.gamma;
+    }
+  }
+  if (ad.foldAngle !== undefined) {
+    appState.reference.foldAngle = ad.foldAngle;
+  }
+
+  // Update UI pattern buttons
+  const patBtns = document.querySelectorAll("#mode-reference-container .pattern-btn");
+  patBtns.forEach(b => {
+    b.classList.toggle("active", b.dataset.pattern === ptype);
+  });
+  const badge = document.getElementById("ref-active-pattern-badge");
+  if (badge) badge.textContent = ptype.replace(/_/g, " ");
+
+  // Update UI sliders and readouts
+  const foldSlider = document.getElementById("ref-fold-slider");
+  if (foldSlider) foldSlider.value = appState.reference.foldAngle;
+  const foldReadout = document.getElementById("ref-fold-readout");
+  if (foldReadout) foldReadout.textContent = appState.reference.foldAngle.toFixed(1) + "°";
+  const hudAngle = document.getElementById("ref-hud-angle");
+  if (hudAngle) hudAngle.textContent = appState.reference.foldAngle.toFixed(1) + "°";
+
+  // Rebuild parameter inputs for this pattern and generate pattern
+  renderReferenceParamInputs(ptype);
+  generateReferencePattern();
+}
 
 function setupModeSwitching() {
   const tabExplorer = document.getElementById("tab-btn-explorer");
@@ -144,6 +395,7 @@ function setupModeSwitching() {
     activeContainer.classList.add("active");
     appState.currentMode = modeName;
     updateStatus(`${modeName.charAt(0).toUpperCase() + modeName.slice(1)} Mode Active`);
+    updateSyncBadge();
   }
 
   if (tabExplorer) {
@@ -160,6 +412,8 @@ function setupModeSwitching() {
         initReferenceThreeJS();
       }
       onReferenceResize();
+      // Seamless automatic parameter sync from active design!
+      syncReferenceFromActiveDesign();
     });
   }
 
@@ -170,9 +424,8 @@ function setupModeSwitching() {
         initAbsorberThreeJS();
       }
       onAbsorberResize();
-      if (!appState.absorber.lastResult) {
-        runAbsorberSim();
-      }
+      // Seamless automatic parameter sync from active design!
+      syncAbsorberFromActiveDesign();
     });
   }
 
@@ -283,10 +536,39 @@ function initExplorerControls() {
   });
 
   // Export Buttons
-  document.getElementById("btn-export-fold").addEventListener("click", exportCandidateFOLD);
-  document.getElementById("btn-export-obj").addEventListener("click", exportCandidateOBJ);
+  const btnExpFold = document.getElementById("btn-export-fold");
+  if (btnExpFold) btnExpFold.addEventListener("click", exportCandidateFOLD);
+  const btnExpObj = document.getElementById("btn-export-obj");
+  if (btnExpObj) btnExpObj.addEventListener("click", exportCandidateOBJ);
+
+  // Inspector Cross-Module Transfer Buttons
+  const btnInspSendRef = document.getElementById("btn-insp-send-ref");
+  if (btnInspSendRef) btnInspSendRef.addEventListener("click", sendCandidateToReference);
+  const btnInspSendAbs = document.getElementById("btn-insp-send-abs");
+  if (btnInspSendAbs) btnInspSendAbs.addEventListener("click", sendCandidateToAbsorber);
+  const btnInspSendOpt = document.getElementById("btn-insp-send-opt");
+  if (btnInspSendOpt) btnInspSendOpt.addEventListener("click", sendCandidateToOptFab);
 
   // Inspector Three.js controls
+  const btnInspStrain = document.getElementById("btn-insp-strain");
+  if (btnInspStrain) {
+    btnInspStrain.addEventListener("click", () => {
+      appState.strain.enabledInsp = !appState.strain.enabledInsp;
+      const isEnabled = appState.strain.enabledInsp;
+      btnInspStrain.classList.toggle("active-strain", isEnabled);
+      btnInspStrain.textContent = `⚡ Strain: ${isEnabled ? "ON" : "OFF"}`;
+
+      const overlay = document.getElementById("insp-strain-overlay");
+      if (overlay) overlay.classList.toggle("hidden", !isEnabled);
+
+      const cand = appState.explorer.selectedCandidate;
+      if (cand && cand.modelData) {
+        renderInspector3D(cand.modelData.folded_mesh_3d, cand.modelData.crease_pattern_2d);
+      }
+      updateStatus(`Inspector Strain Heatmap: ${isEnabled ? "ACTIVE" : "DISABLED"}`);
+    });
+  }
+
   document.getElementById("btn-insp-wireframe").addEventListener("click", toggleInspectorWireframe);
   document.getElementById("btn-insp-reset3d").addEventListener("click", resetInspectorCamera);
   document.getElementById("btn-insp-reset2d").addEventListener("click", resetInspector2DView);
@@ -769,6 +1051,18 @@ async function selectCandidate(candidateId) {
   document.getElementById("insp-fold-slider").value = foldVal;
   document.getElementById("insp-fold-val").textContent = foldVal.toFixed(1) + "°";
 
+  // Seamless cross-module synchronization
+  const ptype = getExplorerPatternType();
+  syncDesignToAllSections("explorer", {
+    id: candidate.id,
+    pattern_type: ptype,
+    family: appState.explorer.family,
+    params: candidate.parameters,
+    foldAngle: foldVal,
+    metrics: candidate.metrics,
+    validation: candidate.validation,
+  });
+
   // Populate Metrics Card
   const m = candidate.metrics || {};
   document.getElementById("insp-stat-mesh").textContent = `${m.num_vertices || 0} / ${m.num_faces || 0}`;
@@ -831,8 +1125,15 @@ async function foldSelectedCandidate(foldAngleDeg) {
     if (!resp.ok) return;
     const model = await resp.json();
 
-    // Render into Inspector 3D View
-    renderInspector3D(model.folded_mesh_3d);
+    // Cache model data for active design & FOLD export
+    cand.modelData = model;
+    if (appState.activeDesign) {
+      appState.activeDesign.modelData = model;
+      appState.activeDesign.foldAngle = foldAngleDeg;
+    }
+
+    // Render into Inspector 3D View with Mountain/Valley crease lines
+    renderInspector3D(model.folded_mesh_3d, model.crease_pattern_2d);
 
     // Render into Inspector 2D Canvas
     renderInspector2D(model.crease_pattern_2d);
@@ -910,7 +1211,60 @@ function animateInspector() {
   }
 }
 
-function renderInspector3D(meshData) {
+function create3DCreaseLines(creases, vList, isStrain = false, strainMetrics = null) {
+  if (!creases || !vList || creases.length === 0) return null;
+
+  const positions = [];
+  const colors = [];
+
+  const creaseCol = (isStrain && strainMetrics)
+    ? OrigamiStrainEngine.getStrainColor(strainMetrics.creaseBendingStrain, appState.strain.maxThreshold)
+    : null;
+
+  creases.forEach(c => {
+    const u = c.u;
+    const v = c.v;
+    if (u === undefined || v === undefined) return;
+    if (u >= vList.length || v >= vList.length) return;
+
+    const p1 = vList[u];
+    const p2 = vList[v];
+    if (!p1 || !p2) return;
+
+    positions.push(p1[0], p1[1], p1[2], p2[0], p2[1], p2[2]);
+
+    let col;
+    if (isStrain && creaseCol) {
+      col = creaseCol;
+    } else {
+      if (c.type === "M") {
+        col = new THREE.Color(0xdc2626); // Bold Mountain Red
+      } else if (c.type === "V") {
+        col = new THREE.Color(0x2563eb); // Bold Valley Blue
+      } else {
+        col = new THREE.Color(0x0f172a); // Deep Slate Border
+      }
+    }
+
+    colors.push(col.r, col.g, col.b, col.r, col.g, col.b);
+  });
+
+  if (positions.length === 0) return null;
+
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geom.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+
+  const mat = new THREE.LineBasicMaterial({
+    vertexColors: true,
+    linewidth: 2.2,
+    depthTest: true,
+  });
+
+  return new THREE.LineSegments(geom, mat);
+}
+
+function renderInspector3D(meshData, creaseData) {
   if (!inspScene || !meshData) return;
 
   if (inspMeshObj) {
@@ -928,12 +1282,26 @@ function renderInspector3D(meshData) {
   const vList = meshData.vertices;
   const fList = meshData.faces;
 
+  const isStrain = appState.strain.enabledInsp;
+  let strainMetrics = null;
+  if (isStrain) {
+    strainMetrics = OrigamiStrainEngine.computeStrains(meshData, creaseData, appState.explorer.inspFoldAngle || 35.0);
+    appState.strain.lastInspMetrics = strainMetrics;
+    OrigamiStrainEngine.updateHUD("insp", strainMetrics);
+  }
+
   const positions = [];
   const colors = [];
 
   for (let fIdx = 0; fIdx < fList.length; fIdx++) {
     const f = fList[fIdx];
-    const col = new THREE.Color(0x93c5fd); // Restrained engineering blue
+    let col;
+    if (isStrain && strainMetrics && strainMetrics.faceStrains) {
+      const faceE = strainMetrics.faceStrains[fIdx] || 0.0;
+      col = OrigamiStrainEngine.getStrainColor(faceE, appState.strain.maxThreshold);
+    } else {
+      col = new THREE.Color(0x93c5fd); // Restrained engineering blue
+    }
 
     for (let i = 1; i < f.length - 1; i++) {
       const v0 = vList[f[0]];
@@ -959,15 +1327,23 @@ function renderInspector3D(meshData) {
     side: THREE.DoubleSide,
     roughness: 0.6,
     metalness: 0.1,
+    polygonOffset: true,
+    polygonOffsetFactor: 1,
+    polygonOffsetUnits: 1,
   });
 
   inspMeshObj = new THREE.Mesh(geom, mat);
   inspScene.add(inspMeshObj);
 
-  // Wireframe edges
-  const edgeGeom = new THREE.WireframeGeometry(geom);
-  const edgeMat = new THREE.LineBasicMaterial({ color: 0x334155, linewidth: 1 });
-  inspEdgesObj = new THREE.LineSegments(edgeGeom, edgeMat);
+  // Render authentic origami creases (Red Mountain, Blue Valley, or Strain gradient)
+  if (creaseData && creaseData.creases && creaseData.creases.length > 0) {
+    inspEdgesObj = create3DCreaseLines(creaseData.creases, vList, isStrain, strainMetrics);
+  }
+  if (!inspEdgesObj) {
+    const edgeGeom = new THREE.WireframeGeometry(geom);
+    const edgeMat = new THREE.LineBasicMaterial({ color: 0x334155, linewidth: 1 });
+    inspEdgesObj = new THREE.LineSegments(edgeGeom, edgeMat);
+  }
   inspScene.add(inspEdgesObj);
 }
 
@@ -1091,28 +1467,107 @@ function resetInspector2DView() {
 }
 
 // =====================================================================
-// EXPORT HELPERS (.FOLD and .OBJ)
+// EXPORT HELPERS (SIMULATOR-COMPLIANT .FOLD & .OBJ) & CROSS-MODULE SYNC
 // =====================================================================
-function exportCandidateFOLD() {
-  const cand = appState.explorer.selectedCandidate;
-  if (!cand) return;
 
-  const foldJson = {
+function getExplorerPatternType() {
+  const family = appState.explorer.family || "modulated_miura";
+  if (family.includes("waterbomb")) return "waterbomb";
+  if (family.includes("yoshimura")) return "yoshimura";
+  return "miura_ori";
+}
+
+function buildCompliantFold(creaseData, title, foldAngleDeg = 35.0) {
+  if (!creaseData) return null;
+  const vList = creaseData.vertices || [];
+  const verticesCoords = vList.map(v => v.length === 2 ? [v[0], v[1], 0.0] : [v[0], v[1], v[2] || 0.0]);
+
+  const creases = creaseData.creases || [];
+  const edgesVertices = [];
+  const edgesAssignment = [];
+  const edgesFoldAngle = [];
+
+  creases.forEach(c => {
+    edgesVertices.push([c.u, c.v]);
+    const asgn = (c.type || "F").toUpperCase();
+    edgesAssignment.push(asgn);
+    if (asgn === "M") {
+      edgesFoldAngle.push(-180.0);
+    } else if (asgn === "V") {
+      edgesFoldAngle.push(180.0);
+    } else {
+      edgesFoldAngle.push(0.0);
+    }
+  });
+
+  const faces = creaseData.faces || [];
+  const facesVertices = faces.map(f => f.indices || []);
+  const facesMaterials = faces.map(f => f.material || "substrate");
+
+  return {
     file_spec: 1.1,
-    file_creator: "RF Origami Design Studio Explorer",
-    file_title: `RF_Origami_${cand.id}`,
-    candidate_id: cand.id,
-    parameters: cand.parameters,
-    metrics: cand.metrics,
-    validation: cand.validation,
+    file_creator: "RF Origami Design Studio",
+    file_author: "RF-Origami Engineer",
+    file_title: title || "RF_Origami_Model",
+    file_classes: ["singleModel"],
+    frame_classes: ["creasePattern"],
+    frame_attributes: ["2D"],
+    vertices_coords: verticesCoords,
+    edges_vertices: edgesVertices,
+    edges_assignment: edgesAssignment,
+    edges_foldAngle: edgesFoldAngle,
+    faces_vertices: facesVertices,
+    faces_materials: facesMaterials,
   };
+}
 
-  downloadFile(`${cand.id}_rf_origami.fold`, JSON.stringify(foldJson, null, 2), "application/json");
+async function exportCandidateFOLD() {
+  const cand = appState.explorer.selectedCandidate;
+  if (!cand) {
+    updateStatus("Select a candidate before exporting .FOLD");
+    return;
+  }
+
+  const ptype = getExplorerPatternType();
+  const foldAngle = appState.explorer.inspFoldAngle || 35.0;
+
+  try {
+    updateStatus(`Exporting FOLD specification for ${cand.id}...`);
+    const resp = await fetch("/api/fold/export", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pattern_type: ptype,
+        params: cand.parameters,
+        fold_angle: foldAngle,
+        as_3d: false,
+      }),
+    });
+
+    if (resp.ok) {
+      const foldData = await resp.json();
+      downloadFile(`${cand.id}_origami.fold`, JSON.stringify(foldData, null, 2), "application/json");
+      updateStatus(`FOLD file exported: ${cand.id}_origami.fold (Ready for Origami Simulator)`);
+      return;
+    }
+  } catch (err) {
+    console.warn("Backend FOLD export endpoint failed, falling back to client synthesizer:", err);
+  }
+
+  const creaseData = (cand.modelData && cand.modelData.crease_pattern_2d) || insp2DData;
+  if (creaseData) {
+    const foldData = buildCompliantFold(creaseData, cand.id, foldAngle);
+    downloadFile(`${cand.id}_origami.fold`, JSON.stringify(foldData, null, 2), "application/json");
+    updateStatus(`FOLD file exported: ${cand.id}_origami.fold (Ready for Origami Simulator)`);
+  }
 }
 
 function exportCandidateOBJ() {
   const cand = appState.explorer.selectedCandidate;
-  if (!cand || !inspMeshObj) return;
+  if (!cand || !inspMeshObj) {
+    updateStatus("No candidate 3D mesh available to export");
+    return;
+  }
 
   const geom = inspMeshObj.geometry;
   const pos = geom.getAttribute("position");
@@ -1127,6 +1582,285 @@ function exportCandidateOBJ() {
   }
 
   downloadFile(`${cand.id}_mesh.obj`, obj, "text/plain");
+  updateStatus(`OBJ file exported: ${cand.id}_mesh.obj`);
+}
+
+async function exportReferenceFOLD() {
+  const ptype = appState.reference.currentPattern || "miura_ori";
+  const params = appState.reference.params || {};
+  const foldAngle = appState.reference.foldAngle || 35.0;
+
+  try {
+    updateStatus(`Exporting FOLD specification for ${ptype}...`);
+    const resp = await fetch("/api/fold/export", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pattern_type: ptype,
+        params: params,
+        fold_angle: foldAngle,
+        material_tags: appState.reference.materialTags,
+        as_3d: false,
+      }),
+    });
+
+    if (resp.ok) {
+      const foldData = await resp.json();
+      downloadFile(`${ptype}_origami.fold`, JSON.stringify(foldData, null, 2), "application/json");
+      updateStatus(`FOLD file exported: ${ptype}_origami.fold (Ready for Origami Simulator)`);
+      return;
+    }
+  } catch (err) {
+    console.warn("Backend FOLD export error:", err);
+  }
+
+  if (appState.reference.modelData && appState.reference.modelData.crease_pattern_2d) {
+    const foldData = buildCompliantFold(appState.reference.modelData.crease_pattern_2d, ptype, foldAngle);
+    downloadFile(`${ptype}_origami.fold`, JSON.stringify(foldData, null, 2), "application/json");
+    updateStatus(`FOLD file exported: ${ptype}_origami.fold (Ready for Origami Simulator)`);
+  }
+}
+
+function exportReferenceOBJ() {
+  if (!refMeshObj) {
+    updateStatus("No reference 3D mesh available to export");
+    return;
+  }
+  const geom = refMeshObj.geometry;
+  const pos = geom.getAttribute("position");
+  if (!pos) return;
+
+  const ptype = appState.reference.currentPattern || "origami";
+  let obj = `# Wavefront OBJ Export - RF Origami Design Studio\n# Pattern: ${ptype}\n`;
+  for (let i = 0; i < pos.count; i++) {
+    obj += `v ${pos.getX(i).toFixed(4)} ${pos.getY(i).toFixed(4)} ${pos.getZ(i).toFixed(4)}\n`;
+  }
+  for (let i = 0; i < pos.count; i += 3) {
+    obj += `f ${i + 1} ${i + 2} ${i + 3}\n`;
+  }
+  downloadFile(`${ptype}_model.obj`, obj, "text/plain");
+  updateStatus(`OBJ file exported: ${ptype}_model.obj`);
+}
+
+async function exportAbsorberFOLD() {
+  const ptype = appState.absorber.patternType || "miura_ori";
+  const params = getAbsorberParams();
+  const foldAngle = appState.absorber.foldAngle || 30.0;
+
+  try {
+    updateStatus(`Exporting FOLD specification for Absorber ${ptype}...`);
+    const resp = await fetch("/api/fold/export", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pattern_type: ptype,
+        params: params,
+        fold_angle: foldAngle,
+        as_3d: false,
+      }),
+    });
+
+    if (resp.ok) {
+      const foldData = await resp.json();
+      downloadFile(`absorber_${ptype}_origami.fold`, JSON.stringify(foldData, null, 2), "application/json");
+      updateStatus(`FOLD file exported: absorber_${ptype}_origami.fold (Ready for Origami Simulator)`);
+      return;
+    }
+  } catch (err) {
+    console.warn("Backend FOLD export error:", err);
+  }
+}
+
+function exportAbsorberOBJ() {
+  if (!appState.absorber.threeObj) {
+    updateStatus("No absorber 3D mesh available to export");
+    return;
+  }
+  const geom = appState.absorber.threeObj.geometry;
+  const pos = geom.getAttribute("position");
+  if (!pos) return;
+
+  const ptype = appState.absorber.patternType || "absorber";
+  let obj = `# Wavefront OBJ Export - RF Origami Design Studio\n# Metasurface: ${ptype}\n`;
+  for (let i = 0; i < pos.count; i++) {
+    obj += `v ${pos.getX(i).toFixed(4)} ${pos.getY(i).toFixed(4)} ${pos.getZ(i).toFixed(4)}\n`;
+  }
+  for (let i = 0; i < pos.count; i += 3) {
+    obj += `f ${i + 1} ${i + 2} ${i + 3}\n`;
+  }
+  downloadFile(`absorber_${ptype}_model.obj`, obj, "text/plain");
+  updateStatus(`OBJ file exported: absorber_${ptype}_model.obj`);
+}
+
+function sendCandidateToReference() {
+  const cand = appState.explorer.selectedCandidate;
+  if (!cand) {
+    updateStatus("Please select a candidate in Explorer first");
+    return;
+  }
+
+  const ptype = getExplorerPatternType();
+  const params = { ...(cand.parameters || {}) };
+  const foldVal = cand.parameters?.fold_angle || appState.explorer.inspFoldAngle || 35.0;
+
+  // Sync active design
+  syncDesignToAllSections("explorer", {
+    id: cand.id,
+    pattern_type: ptype,
+    family: appState.explorer.family,
+    params: params,
+    foldAngle: foldVal,
+  });
+
+  // Switch to Reference Patterns
+  appState.reference.currentPattern = ptype;
+  appState.reference.foldAngle = foldVal;
+  appState.reference.params = { ...params };
+  if (params.gamma !== undefined && appState.reference.params.gamma_deg === undefined) {
+    appState.reference.params.gamma_deg = params.gamma;
+  }
+
+  // Update Reference UI controls
+  const foldSlider = document.getElementById("ref-fold-slider");
+  if (foldSlider) foldSlider.value = foldVal;
+  const foldReadout = document.getElementById("ref-fold-readout");
+  if (foldReadout) foldReadout.textContent = foldVal.toFixed(1) + "°";
+
+  const patBtns = document.querySelectorAll("#mode-reference-container .pattern-btn");
+  patBtns.forEach(b => {
+    b.classList.toggle("active", b.dataset.pattern === ptype);
+  });
+  const badge = document.getElementById("ref-active-pattern-badge");
+  if (badge) badge.textContent = ptype.replace(/_/g, " ");
+
+  // Activate tab
+  const tabRef = document.getElementById("tab-btn-reference");
+  if (tabRef) tabRef.click();
+
+  // Render parameters and generate
+  renderReferenceParamInputs(ptype);
+  generateReferencePattern();
+  updateStatus(`Transferred ${cand.id} parameters to Reference Patterns Studio`);
+}
+
+function sendCandidateToAbsorber() {
+  const cand = appState.explorer.selectedCandidate;
+  if (!cand) {
+    updateStatus("Please select a candidate in Explorer first");
+    return;
+  }
+
+  const ptype = getExplorerPatternType();
+  const params = { ...(cand.parameters || {}) };
+  const foldVal = cand.parameters?.fold_angle || appState.explorer.inspFoldAngle || 30.0;
+
+  syncDesignToAllSections("explorer", {
+    id: cand.id,
+    pattern_type: ptype,
+    family: appState.explorer.family,
+    params: params,
+    foldAngle: foldVal,
+  });
+
+  setAbsorberParameters(ptype, params, foldVal);
+
+  const tabAbs = document.getElementById("tab-btn-absorber");
+  if (tabAbs) tabAbs.click();
+
+  updateAbsorber3DPreview();
+  runAbsorberSim();
+  updateStatus(`Transferred ${cand.id} to Metasurface Absorber`);
+}
+
+function sendCandidateToOptFab() {
+  const cand = appState.explorer.selectedCandidate;
+  if (!cand) {
+    updateStatus("Please select a candidate in Explorer first");
+    return;
+  }
+
+  const ptype = getExplorerPatternType();
+  const params = { ...(cand.parameters || {}) };
+  const foldVal = cand.parameters?.fold_angle || appState.explorer.inspFoldAngle || 35.0;
+
+  syncDesignToAllSections("explorer", {
+    id: cand.id,
+    pattern_type: ptype,
+    family: appState.explorer.family,
+    params: params,
+    foldAngle: foldVal,
+  });
+
+  const tabOpt = document.getElementById("tab-btn-optfab");
+  if (tabOpt) tabOpt.click();
+
+  updateStatus(`Selected ${cand.id} as active production target in Fabrication Studio`);
+}
+
+function sendReferenceToAbsorber() {
+  const ptype = appState.reference.currentPattern || "miura_ori";
+  const params = { ...(appState.reference.params || {}) };
+  const foldVal = appState.reference.foldAngle || 30.0;
+
+  syncDesignToAllSections("reference", {
+    id: `Ref (${ptype})`,
+    pattern_type: ptype,
+    family: ptype,
+    params: params,
+    foldAngle: foldVal,
+  });
+
+  setAbsorberParameters(ptype, params, foldVal);
+
+  const tabAbs = document.getElementById("tab-btn-absorber");
+  if (tabAbs) tabAbs.click();
+
+  updateAbsorber3DPreview();
+  runAbsorberSim();
+  updateStatus(`Transferred Reference Pattern (${ptype}) to Metasurface Absorber`);
+}
+
+function setAbsorberParameters(ptype, params, foldVal) {
+  appState.absorber.patternType = ptype;
+  appState.absorber.foldAngle = foldVal;
+
+  const a = params.a !== undefined ? params.a : 25.0;
+  const b = params.b !== undefined ? params.b : 20.0;
+  const gamma = params.gamma_deg !== undefined ? params.gamma_deg : (params.gamma !== undefined ? params.gamma : 60.0);
+  const nx = params.num_cells_x !== undefined ? params.num_cells_x : 2;
+  const ny = params.num_cells_y !== undefined ? params.num_cells_y : 2;
+
+  appState.absorber.params = { a, b, gamma_deg: gamma, num_cells_x: nx, num_cells_y: ny };
+
+  const patSelect = document.getElementById("abs-pattern-type");
+  if (patSelect) patSelect.value = ptype;
+
+  const foldSlider = document.getElementById("abs-fold-slider");
+  if (foldSlider) foldSlider.value = foldVal;
+  const foldReadout = document.getElementById("abs-fold-readout");
+  if (foldReadout) foldReadout.textContent = `${foldVal.toFixed(1)}°`;
+
+  const inputA = document.getElementById("abs-param-a");
+  if (inputA) inputA.value = a;
+  const inputB = document.getElementById("abs-param-b");
+  if (inputB) inputB.value = b;
+  const inputGamma = document.getElementById("abs-param-gamma");
+  if (inputGamma) inputGamma.value = gamma;
+  const inputNx = document.getElementById("abs-param-nx");
+  if (inputNx) inputNx.value = nx;
+  const inputNy = document.getElementById("abs-param-ny");
+  if (inputNy) inputNy.value = ny;
+}
+
+function syncAbsorberFromActiveDesign() {
+  if (!appState.activeDesign) {
+    updateStatus("No active design to sync from");
+    return;
+  }
+  const ad = appState.activeDesign;
+  setAbsorberParameters(ad.pattern_type, ad.params, ad.foldAngle);
+  updateAbsorber3DPreview();
+  updateStatus(`Synchronized Absorber parameters from ${ad.id}`);
 }
 
 function downloadFile(filename, content, mime) {
@@ -1147,6 +1881,19 @@ function downloadFile(filename, content, mime) {
 let refScene, refCamera, refRenderer, refControls;
 let refMeshObj = null, refEdgesObj = null;
 let refSceneInitialized = false;
+let refCanvasScale = 1, refCanvasOffX = 0, refCanvasOffY = 0;
+
+function isPointInPoly(pt, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i][0], yi = poly[i][1];
+    const xj = poly[j][0], yj = poly[j][1];
+    const intersect = ((yi > pt[1]) !== (yj > pt[1])) &&
+      (pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
 
 function initReferenceControls() {
   // Pattern selection buttons
@@ -1161,6 +1908,15 @@ function initReferenceControls() {
       if (badge) badge.textContent = btn.textContent;
       const hudPat = document.getElementById("ref-hud-pattern");
       if (hudPat) hudPat.textContent = btn.textContent;
+      
+      syncDesignToAllSections("reference", {
+        id: `Ref (${btn.textContent})`,
+        pattern_type: ptype,
+        family: ptype,
+        params: appState.reference.params,
+        foldAngle: appState.reference.foldAngle,
+      });
+
       renderReferenceParamInputs(ptype);
       generateReferencePattern();
     });
@@ -1177,6 +1933,15 @@ function initReferenceControls() {
     foldReadout.textContent = angle.toFixed(1) + "°";
     document.getElementById("ref-hud-angle").textContent = angle.toFixed(1) + "°";
     appState.reference.foldAngle = angle;
+    
+    syncDesignToAllSections("reference", {
+      id: `Ref (${appState.reference.currentPattern})`,
+      pattern_type: appState.reference.currentPattern,
+      family: appState.reference.currentPattern,
+      params: appState.reference.params,
+      foldAngle: angle,
+    });
+
     generateReferencePattern();
   });
 
@@ -1187,15 +1952,57 @@ function initReferenceControls() {
       matChips.forEach(c => c.classList.remove("active"));
       chip.classList.add("active");
       appState.reference.activeMaterial = chip.dataset.material;
+      updateStatus(`Selected RF Material: ${chip.dataset.material.toUpperCase()} (Click on crease pattern to tag facets)`);
     });
   });
+
+  // Strain Visualization Toggle Controls (Origami Simulator inspired)
+  const btnRefStrain = document.getElementById("btn-ref-strain");
+  const btnRefStrainSide = document.getElementById("btn-ref-strain-toggle-side");
+
+  function toggleReferenceStrain() {
+    appState.strain.enabledRef = !appState.strain.enabledRef;
+    const isEnabled = appState.strain.enabledRef;
+
+    if (btnRefStrain) {
+      btnRefStrain.classList.toggle("active-strain", isEnabled);
+      btnRefStrain.textContent = `⚡ Strain: ${isEnabled ? "ON" : "OFF"}`;
+    }
+    if (btnRefStrainSide) {
+      btnRefStrainSide.classList.toggle("active-strain", isEnabled);
+      btnRefStrainSide.textContent = isEnabled ? "Disable Heatmap" : "Enable Heatmap";
+    }
+
+    const overlay = document.getElementById("ref-strain-overlay");
+    if (overlay) {
+      overlay.classList.toggle("hidden", !isEnabled);
+    }
+
+    if (appState.reference.modelData) {
+      renderReference3D(appState.reference.modelData.folded_mesh_3d, appState.reference.modelData.crease_pattern_2d);
+    }
+    updateStatus(`Origami Simulator Strain Analysis: ${isEnabled ? "ACTIVE" : "DISABLED"}`);
+  }
+
+  if (btnRefStrain) btnRefStrain.addEventListener("click", toggleReferenceStrain);
+  if (btnRefStrainSide) btnRefStrainSide.addEventListener("click", toggleReferenceStrain);
+
+  // Export & Cross-Module buttons
+  const btnRefSendAbs = document.getElementById("btn-ref-send-abs");
+  if (btnRefSendAbs) btnRefSendAbs.addEventListener("click", sendReferenceToAbsorber);
+
+  const btnRefExportFold = document.getElementById("btn-ref-export-fold");
+  if (btnRefExportFold) btnRefExportFold.addEventListener("click", exportReferenceFOLD);
+
+  const btnRefExportObj = document.getElementById("btn-ref-export-obj");
+  if (btnRefExportObj) btnRefExportObj.addEventListener("click", exportReferenceOBJ);
 
   // Viewport tools
   document.getElementById("btn-ref-wireframe").addEventListener("click", () => {
     if (refEdgesObj) {
       refEdgesObj.visible = !refEdgesObj.visible;
       document.getElementById("btn-ref-wireframe").textContent = 
-        `Edges: ${refEdgesObj.visible ? 'ON' : 'OFF'}`;
+        `Creases: ${refEdgesObj.visible ? 'ON' : 'OFF'}`;
     }
   });
 
@@ -1212,6 +2019,36 @@ function initReferenceControls() {
       drawReference2DCrease(appState.reference.modelData.crease_pattern_2d);
     }
   });
+
+  // Interactive 2D Crease Canvas Facet Material Tagging
+  const canvas = document.getElementById("ref-crease-canvas");
+  if (canvas) {
+    canvas.addEventListener("click", (evt) => {
+      if (!appState.reference.modelData || !appState.reference.modelData.crease_pattern_2d) return;
+      const creaseData = appState.reference.modelData.crease_pattern_2d;
+      const rect = canvas.getBoundingClientRect();
+      const clientX = evt.clientX - rect.left;
+      const clientY = evt.clientY - rect.top;
+
+      const modelX = (clientX - refCanvasOffX) / refCanvasScale;
+      const modelY = (clientY - refCanvasOffY) / refCanvasScale;
+
+      const v2d = creaseData.vertices;
+      if (!creaseData.faces || !v2d) return;
+
+      for (let fIdx = 0; fIdx < creaseData.faces.length; fIdx++) {
+        const face = creaseData.faces[fIdx];
+        const poly = face.indices.map(i => v2d[i]);
+        if (isPointInPoly([modelX, modelY], poly)) {
+          const mat = appState.reference.activeMaterial || "conductor";
+          appState.reference.materialTags[fIdx] = mat;
+          updateStatus(`Tagged Facet #${fIdx} as ${mat.toUpperCase()}`);
+          generateReferencePattern();
+          break;
+        }
+      }
+    });
+  }
 }
 
 async function loadReferenceCatalog() {
@@ -1220,6 +2057,7 @@ async function loadReferenceCatalog() {
     if (!resp.ok) return;
     appState.reference.catalog = await resp.json();
     renderReferenceParamInputs(appState.reference.currentPattern);
+    generateReferencePattern();
   } catch (e) {
     console.warn("Failed to load pattern catalog:", e);
   }
@@ -1227,32 +2065,36 @@ async function loadReferenceCatalog() {
 
 function renderReferenceParamInputs(patternType) {
   const container = document.getElementById("ref-param-container");
+  if (!container) return;
   container.innerHTML = "";
 
   const patInfo = appState.reference.catalog[patternType];
   if (!patInfo || !patInfo.parameters) return;
 
-  appState.reference.params = {};
+  if (!appState.reference.params) appState.reference.params = {};
 
   patInfo.parameters.forEach(p => {
-    appState.reference.params[p.name] = p.default;
+    if (appState.reference.params[p.name] === undefined) {
+      appState.reference.params[p.name] = p.default;
+    }
 
     const item = document.createElement("div");
     item.className = "param-item";
 
-    const isInt = p.type === "int";
-    const min = p.min !== undefined ? p.min : (isInt ? 1 : 1.0);
-    const max = p.max !== undefined ? p.max : (isInt ? 10 : 100.0);
-    const step = isInt ? 1 : (p.unit === "deg" ? 0.5 : 1.0);
+    const isInt = (p.param_type === "int") || (p.type === "int");
+    const min = p.min_val !== undefined ? p.min_val : (p.min !== undefined ? p.min : (isInt ? 1 : 1.0));
+    const max = p.max_val !== undefined ? p.max_val : (p.max !== undefined ? p.max : (isInt ? 10 : 100.0));
+    const step = p.step !== undefined ? p.step : (isInt ? 1 : (p.unit === "deg" ? 1.0 : 0.5));
+    const currentVal = appState.reference.params[p.name];
 
     item.innerHTML = `
       <div class="param-row">
         <span class="param-name">${p.name} ${p.unit ? '[' + p.unit + ']' : ''}</span>
-        <span id="ref-param-val-${p.name}" class="param-val">${p.default}</span>
+        <span id="ref-param-val-${p.name}" class="param-val">${currentVal}</span>
       </div>
       <input type="range" class="param-slider" 
         id="ref-slider-${p.name}"
-        min="${min}" max="${max}" step="${step}" value="${p.default}">
+        min="${min}" max="${max}" step="${step}" value="${currentVal}">
     `;
 
     const slider = item.querySelector(`#ref-slider-${p.name}`);
@@ -1262,6 +2104,15 @@ function renderReferenceParamInputs(patternType) {
       const val = isInt ? parseInt(e.target.value, 10) : parseFloat(e.target.value);
       valText.textContent = val;
       appState.reference.params[p.name] = val;
+
+      syncDesignToAllSections("reference", {
+        id: `Ref (${appState.reference.currentPattern})`,
+        pattern_type: appState.reference.currentPattern,
+        family: appState.reference.currentPattern,
+        params: appState.reference.params,
+        foldAngle: appState.reference.foldAngle,
+      });
+
       generateReferencePattern();
     });
 
@@ -1271,8 +2122,8 @@ function renderReferenceParamInputs(patternType) {
 
 async function generateReferencePattern() {
   const ptype = appState.reference.currentPattern;
-  const params = appState.reference.params;
-  const fold = appState.reference.foldAngle;
+  const params = appState.reference.params || {};
+  const fold = appState.reference.foldAngle || 35.0;
 
   try {
     const resp = await fetch("/api/generate", {
@@ -1289,6 +2140,18 @@ async function generateReferencePattern() {
     if (!resp.ok) return;
     const data = await resp.json();
     appState.reference.modelData = data;
+
+    // Seamless active design sync
+    appState.activeDesign = {
+      source: "reference",
+      id: `Ref (${ptype.replace(/_/g, " ")})`,
+      pattern_type: ptype,
+      family: ptype,
+      params: { ...params },
+      foldAngle: fold,
+      modelData: data,
+    };
+    updateSyncBadge();
 
     // Update HUD metrics
     const m = data.metrics || {};
@@ -1319,8 +2182,8 @@ async function generateReferencePattern() {
     document.getElementById("ref-stat-substrate-area").textContent = `${(mat.substrate || 0).toFixed(1)} mm²`;
     document.getElementById("ref-stat-keepout-area").textContent = `${(mat.keepout || 0).toFixed(1)} mm²`;
 
-    // Render 3D and 2D
-    renderReference3D(data.folded_mesh_3d);
+    // Render 3D with authentic origami crease lines and 2D crease pattern
+    renderReference3D(data.folded_mesh_3d, data.crease_pattern_2d);
     drawReference2DCrease(data.crease_pattern_2d);
   } catch (err) {
     console.error("Reference pattern generation failed:", err);
@@ -1389,7 +2252,7 @@ function animateReference() {
   }
 }
 
-function renderReference3D(meshData) {
+function renderReference3D(meshData, creaseData) {
   if (!refScene || !meshData) return;
 
   if (refMeshObj) {
@@ -1408,14 +2271,28 @@ function renderReference3D(meshData) {
   const fList = meshData.faces;
   const mats = meshData.face_materials || [];
 
+  const isStrain = appState.strain.enabledRef;
+  let strainMetrics = null;
+  if (isStrain) {
+    strainMetrics = OrigamiStrainEngine.computeStrains(meshData, creaseData, appState.reference.foldAngle || 35.0);
+    appState.strain.lastRefMetrics = strainMetrics;
+    OrigamiStrainEngine.updateHUD("ref", strainMetrics);
+  }
+
   const positions = [];
   const colors = [];
 
   for (let fIdx = 0; fIdx < fList.length; fIdx++) {
     const f = fList[fIdx];
-    const matName = mats[fIdx] || "substrate";
-    const colHex = MATERIAL_COLORS[matName] || 0x0284c7;
-    const col = new THREE.Color(colHex);
+    let col;
+    if (isStrain && strainMetrics && strainMetrics.faceStrains) {
+      const faceE = strainMetrics.faceStrains[fIdx] || 0.0;
+      col = OrigamiStrainEngine.getStrainColor(faceE, appState.strain.maxThreshold);
+    } else {
+      const matName = mats[fIdx] || "substrate";
+      const colHex = MATERIAL_COLORS[matName] || 0x0284c7;
+      col = new THREE.Color(colHex);
+    }
 
     for (let i = 1; i < f.length - 1; i++) {
       const v0 = vList[f[0]];
@@ -1441,14 +2318,23 @@ function renderReference3D(meshData) {
     side: THREE.DoubleSide,
     roughness: 0.6,
     metalness: 0.1,
+    polygonOffset: true,
+    polygonOffsetFactor: 1,
+    polygonOffsetUnits: 1,
   });
 
   refMeshObj = new THREE.Mesh(geom, mat);
   refScene.add(refMeshObj);
 
-  const edgeGeom = new THREE.WireframeGeometry(geom);
-  const edgeMat = new THREE.LineBasicMaterial({ color: 0x334155, linewidth: 1 });
-  refEdgesObj = new THREE.LineSegments(edgeGeom, edgeMat);
+  // Render authentic origami creases (Red Mountain, Blue Valley, or Strain gradient)
+  if (creaseData && creaseData.creases && creaseData.creases.length > 0) {
+    refEdgesObj = create3DCreaseLines(creaseData.creases, vList, isStrain, strainMetrics);
+  }
+  if (!refEdgesObj) {
+    const edgeGeom = new THREE.WireframeGeometry(geom);
+    const edgeMat = new THREE.LineBasicMaterial({ color: 0x334155, linewidth: 1 });
+    refEdgesObj = new THREE.LineSegments(edgeGeom, edgeMat);
+  }
   refScene.add(refEdgesObj);
 }
 
@@ -1478,6 +2364,10 @@ function drawReference2DCrease(creaseData) {
   const scale = Math.min((w - 2 * pad) / b.width, (h - 2 * pad) / b.height);
   const offX = (w - b.width * scale) / 2 - b.min[0] * scale;
   const offY = (h - b.height * scale) / 2 - b.min[1] * scale;
+
+  refCanvasScale = scale;
+  refCanvasOffX = offX;
+  refCanvasOffY = offY;
 
   const v2d = creaseData.vertices;
 
@@ -2080,6 +2970,15 @@ async function loadBenchmarks() {
 let absSceneInitialized = false;
 let absScene, absCamera, absRenderer, absControls;
 
+function getAbsorberParams() {
+  const a = parseFloat(document.getElementById("abs-param-a")?.value || (appState.absorber.params && appState.absorber.params.a) || 25.0);
+  const b = parseFloat(document.getElementById("abs-param-b")?.value || (appState.absorber.params && appState.absorber.params.b) || 20.0);
+  const gamma = parseFloat(document.getElementById("abs-param-gamma")?.value || (appState.absorber.params && appState.absorber.params.gamma_deg) || 60.0);
+  const nx = parseInt(document.getElementById("abs-param-nx")?.value || (appState.absorber.params && appState.absorber.params.num_cells_x) || 2, 10);
+  const ny = parseInt(document.getElementById("abs-param-ny")?.value || (appState.absorber.params && appState.absorber.params.num_cells_y) || 2, 10);
+  return { a, b, gamma_deg: gamma, num_cells_x: nx, num_cells_y: ny };
+}
+
 function initAbsorberControls() {
   const foldSlider = document.getElementById("abs-fold-slider");
   const foldReadout = document.getElementById("abs-fold-readout");
@@ -2091,6 +2990,13 @@ function initAbsorberControls() {
       appState.absorber.foldAngle = val;
       if (foldReadout) foldReadout.textContent = `${val.toFixed(1)}°`;
       if (hudAngle) hudAngle.textContent = `${val.toFixed(1)}°`;
+      syncDesignToAllSections("absorber", {
+        id: `Absorber (${appState.absorber.patternType})`,
+        pattern_type: appState.absorber.patternType,
+        family: appState.absorber.patternType,
+        params: getAbsorberParams(),
+        foldAngle: val,
+      });
       updateAbsorber3DPreview();
     });
   }
@@ -2101,9 +3007,55 @@ function initAbsorberControls() {
       appState.absorber.patternType = e.target.value;
       const hudPat = document.getElementById("abs-hud-pattern");
       if (hudPat) hudPat.textContent = e.target.options[e.target.selectedIndex].text;
+      syncDesignToAllSections("absorber", {
+        id: `Absorber (${e.target.value})`,
+        pattern_type: e.target.value,
+        family: e.target.value,
+        params: getAbsorberParams(),
+        foldAngle: appState.absorber.foldAngle,
+      });
       updateAbsorber3DPreview();
     });
   }
+
+  // Export buttons
+  const btnAbsExportFold = document.getElementById("btn-abs-export-fold");
+  if (btnAbsExportFold) btnAbsExportFold.addEventListener("click", exportAbsorberFOLD);
+
+  const btnAbsExportObj = document.getElementById("btn-abs-export-obj");
+  if (btnAbsExportObj) btnAbsExportObj.addEventListener("click", exportAbsorberOBJ);
+
+  // Sync from active design button
+  const btnAbsSync = document.getElementById("btn-abs-sync-active");
+  if (btnAbsSync) btnAbsSync.addEventListener("click", syncAbsorberFromActiveDesign);
+
+  // Unit cell geometry inputs live synchronization
+  ["abs-param-a", "abs-param-b", "abs-param-gamma", "abs-param-nx", "abs-param-ny"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener("change", () => {
+        appState.absorber.params = getAbsorberParams();
+        syncDesignToAllSections("absorber", {
+          id: `Absorber (${appState.absorber.patternType})`,
+          pattern_type: appState.absorber.patternType,
+          family: appState.absorber.patternType,
+          params: appState.absorber.params,
+          foldAngle: appState.absorber.foldAngle,
+        });
+        updateAbsorber3DPreview();
+      });
+      el.addEventListener("input", () => {
+        appState.absorber.params = getAbsorberParams();
+        syncDesignToAllSections("absorber", {
+          id: `Absorber (${appState.absorber.patternType})`,
+          pattern_type: appState.absorber.patternType,
+          family: appState.absorber.patternType,
+          params: appState.absorber.params,
+          foldAngle: appState.absorber.foldAngle,
+        });
+      });
+    }
+  });
 
   const btnRunSim = document.getElementById("btn-run-absorber-sim");
   if (btnRunSim) {
@@ -2224,30 +3176,32 @@ function onAbsorberResize() {
 }
 
 async function updateAbsorber3DPreview() {
-  // Rapid preview simulation or geometry fetch
   try {
-    const ptype = appState.absorber.patternType;
-    const foldAngle = appState.absorber.foldAngle;
+    const ptype = appState.absorber.patternType || "miura_ori";
+    const foldAngle = appState.absorber.foldAngle !== undefined ? appState.absorber.foldAngle : 30.0;
+    const params = getAbsorberParams();
+
     const resp = await fetch("/api/fold", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         pattern_type: ptype,
-        params: { a: 25.0, b: 25.0, gamma_deg: 65.0, num_cells_x: 2, num_cells_y: 2 },
+        params: params,
         fold_angle_deg: foldAngle,
       }),
     });
     if (!resp.ok) return;
     const data = await resp.json();
-    if (data.mesh) {
-      renderAbsorberGeometry(data.mesh);
+    const mesh = data.folded_mesh_3d || data.mesh;
+    if (mesh) {
+      renderAbsorberGeometry(mesh, data.crease_pattern_2d);
     }
   } catch (e) {
     console.warn("Absorber preview update error:", e);
   }
 }
 
-function renderAbsorberGeometry(mesh) {
+function renderAbsorberGeometry(mesh, creaseData) {
   if (!absScene) return;
 
   if (appState.absorber.threeObj) absScene.remove(appState.absorber.threeObj);
@@ -2278,15 +3232,25 @@ function renderAbsorberGeometry(mesh) {
     side: THREE.DoubleSide,
     transparent: true,
     opacity: 0.88,
+    polygonOffset: true,
+    polygonOffsetFactor: 1,
+    polygonOffsetUnits: 1,
   });
 
   const meshObj = new THREE.Mesh(geom, mat);
   absScene.add(meshObj);
   appState.absorber.threeObj = meshObj;
 
-  const edgesGeom = new THREE.EdgesGeometry(geom);
-  const edgesMat = new THREE.LineBasicMaterial({ color: 0x1e293b, linewidth: 1.5 });
-  const edgesObj = new THREE.LineSegments(edgesGeom, edgesMat);
+  // Render authentic origami creases (Red Mountain, Blue Valley)
+  let edgesObj = null;
+  if (creaseData && creaseData.creases && creaseData.creases.length > 0) {
+    edgesObj = create3DCreaseLines(creaseData.creases, verts);
+  }
+  if (!edgesObj) {
+    const edgesGeom = new THREE.EdgesGeometry(geom);
+    const edgesMat = new THREE.LineBasicMaterial({ color: 0x1e293b, linewidth: 1.5 });
+    edgesObj = new THREE.LineSegments(edgesGeom, edgesMat);
+  }
   absScene.add(edgesObj);
   appState.absorber.edgesObj = edgesObj;
 
@@ -2301,11 +3265,6 @@ function renderAbsorberMesh(result) {
   if (appState.absorber.threeObj) absScene.remove(appState.absorber.threeObj);
   if (appState.absorber.edgesObj) absScene.remove(appState.absorber.edgesObj);
 
-  // If currents exist and showCurrents is enabled, render colored facets
-  const currents = result.surface_currents;
-  const showCurrents = appState.absorber.showCurrents && currents && currents.facets;
-
-  // Render from geometry preview
   updateAbsorber3DPreview();
 }
 
@@ -2318,8 +3277,8 @@ async function runAbsorberSim() {
   updateStatus("Solving electrodynamic surface integral equations for metasurface...");
 
   try {
-    const ptype = document.getElementById("abs-pattern-type")?.value || "miura_ori";
-    const foldAngle = parseFloat(document.getElementById("abs-fold-slider")?.value || 30.0);
+    const ptype = document.getElementById("abs-pattern-type")?.value || appState.absorber.patternType || "miura_ori";
+    const foldAngle = parseFloat(document.getElementById("abs-fold-slider")?.value || appState.absorber.foldAngle || 30.0);
     const pol = document.getElementById("abs-pol-select")?.value || "linear_x";
     const thetaInc = parseFloat(document.getElementById("abs-theta-inc")?.value || 0.0);
     const phiInc = parseFloat(document.getElementById("abs-phi-inc")?.value || 0.0);
@@ -2331,13 +3290,14 @@ async function runAbsorberSim() {
     const fStart = parseFloat(document.getElementById("abs-fstart")?.value || 1.0);
     const fStop = parseFloat(document.getElementById("abs-fstop")?.value || 6.0);
     const nPts = parseInt(document.getElementById("abs-npts")?.value || 31, 10);
+    const params = getAbsorberParams();
 
     const resp = await fetch("/api/absorber/simulate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         pattern_type: ptype,
-        params: { a: 25.0, b: 25.0, gamma_deg: 65.0, num_cells_x: 2, num_cells_y: 2 },
+        params: params,
         fold_angle: foldAngle,
         f_start_ghz: fStart,
         f_stop_ghz: fStop,
@@ -2400,18 +3360,19 @@ async function runAbsorberSweep() {
   updateStatus("Running 2D fold angle × frequency tuning sweep...");
 
   try {
-    const ptype = document.getElementById("abs-pattern-type")?.value || "miura_ori";
+    const ptype = document.getElementById("abs-pattern-type")?.value || appState.absorber.patternType || "miura_ori";
     const subMat = document.getElementById("abs-sub-select")?.value || "kapton";
     const condMat = document.getElementById("abs-cond-select")?.value || "copper";
     const thickness = parseFloat(document.getElementById("abs-thickness")?.value || 0.5);
     const pol = document.getElementById("abs-pol-select")?.value || "linear_x";
+    const params = getAbsorberParams();
 
     const resp = await fetch("/api/absorber/fold-sweep", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         pattern_type: ptype,
-        params: { a: 25.0, b: 25.0, gamma_deg: 65.0, num_cells_x: 2, num_cells_y: 2 },
+        params: params,
         fold_angles: [0.0, 15.0, 30.0, 45.0, 60.0, 75.0],
         f_start_ghz: 1.5,
         f_stop_ghz: 6.5,
@@ -2917,16 +3878,19 @@ async function exportFabricationZip() {
   try {
     const subDesc = document.getElementById("fab-substrate-desc")?.value || "Kapton Polyimide (0.5mm)";
     const condDesc = document.getElementById("fab-conductor-desc")?.value || "Rolled Annealed Copper (35 um)";
-    const foldAngle = appState.absorber.foldAngle || 30.0;
+    const activeParams = (appState.activeDesign && appState.activeDesign.params) ? appState.activeDesign.params : getAbsorberParams();
+    const ptype = (appState.activeDesign && appState.activeDesign.pattern_type) ? appState.activeDesign.pattern_type : (appState.absorber.patternType || "miura_ori");
+    const foldAngle = (appState.activeDesign && appState.activeDesign.foldAngle !== undefined) ? appState.activeDesign.foldAngle : (appState.absorber.foldAngle || 30.0);
+    const designId = (appState.activeDesign && appState.activeDesign.id) ? `FAB-${appState.activeDesign.id}` : "ORIGAMI-ABS-FORGE-001";
 
     const resp = await fetch("/api/fabrication/export", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        pattern_type: appState.absorber.patternType || "miura_ori",
-        params: { a: 25.0, b: 25.0, gamma_deg: 65.0, num_cells_x: 2, num_cells_y: 2 },
+        pattern_type: ptype,
+        params: activeParams,
         fold_angle_deg: foldAngle,
-        design_id: "ORIGAMI-ABS-FORGE-001",
+        design_id: designId,
         substrate_material: subDesc,
         conductor_material: condDesc,
       }),
