@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
 from rf_origami.rf.absorber.metrics import extract_resonance, calculate_absorption_bandwidth
+from rf_origami.rf.metrics.antenna_metrics import _validated_curve
 
 
 class ExperimentalComparator:
@@ -26,11 +27,10 @@ class ExperimentalComparator:
         meas_absorption: Optional[List[float]] = None,
     ) -> Dict[str, Any]:
         """Perform comprehensive statistical and spectral comparison."""
-        f_sim = np.asarray(sim_frequencies_hz, dtype=np.float64)
-        s_sim = np.asarray(sim_s11_db, dtype=np.float64)
-
-        f_meas = np.asarray(meas_frequencies_hz, dtype=np.float64)
-        s_meas = np.asarray(meas_s11_db, dtype=np.float64)
+        f_sim, s_sim = _validated_curve(sim_frequencies_hz, sim_s11_db)
+        f_meas, s_meas = _validated_curve(meas_frequencies_hz, meas_s11_db)
+        if len(f_sim) < 2 or len(f_meas) < 2:
+            raise ValueError("Comparison requires at least two samples in each curve.")
 
         if sim_absorption is None:
             r_sim = 10.0 ** (s_sim / 10.0)
@@ -76,10 +76,10 @@ class ExperimentalComparator:
             a_sim_eval = a_sim[mask_sim]
             rmse_absorption = float(np.sqrt(np.mean((a_sim_eval - a_meas_interp) ** 2)))
         else:
-            rmse_s11_db = 0.0
-            rmse_absorption = 0.0
+            raise ValueError("Comparison requires at least two simulated samples in the overlapping frequency range.")
 
-        correlation = float(np.corrcoef(s_sim[mask_sim], s_meas_interp)[0, 1]) if len(f_eval) >= 3 else 1.0
+        correlation = (float(np.corrcoef(s_sim[mask_sim], s_meas_interp)[0, 1])
+                       if len(f_eval) >= 3 and np.std(s_sim[mask_sim]) > 0 and np.std(s_meas_interp) > 0 else None)
 
         return {
             "predicted_resonance_ghz": float(f_res_sim / 1e9),

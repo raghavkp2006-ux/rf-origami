@@ -3,35 +3,79 @@
 **A First-Principles Computational Origami & Standalone Electromagnetic (RF) Engineering Platform**
 
 [![Python Version](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-blue)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/Tests-118%20passed-success)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-147%20passed%2C%202%20xfail-success)](tests/)
 [![Architecture](https://img.shields.io/badge/Architecture-100%25%20Standalone-brightgreen)](#core-architecture-philosophy)
-[![Status](https://img.shields.io/badge/Status-Production%20Ready-brightgreen)](#what-we-have-built-so-far)
+[![Status](https://img.shields.io/badge/Status-Research%20prototype-yellow)](docs/STATUS.md)
 
 
 ---
 
 ## Table of Contents
 
-1. [Executive Summary & Core Philosophy](#executive-summary--core-philosophy)
-2. [Current Progress & What Has Been Done Till Now](#current-progress--what-has-been-done-till-now)
+1. [Validation Status & Benchmark Evidence](#validation-status--benchmark-evidence)
+2. [Executive Summary & Core Philosophy](#executive-summary--core-philosophy)
+3. [Current Progress & What Has Been Done Till Now](#current-progress--what-has-been-done-till-now)
    - [Phase 1: Computational Origami & Kinematic Engine](#phase-1-computational-origami--kinematic-engine)
    - [Phase 2: Generative Design & Exploration Pipeline](#phase-2-generative-design--exploration-pipeline)
    - [Phase 3: Standalone In-House RF & Electromagnetic Solver](#phase-3-standalone-in-house-rf--electromagnetic-solver)
    - [Phase 4: Design Studio Web Interface & Interactive Visualizer](#phase-4-design-studio-web-interface--interactive-visualizer)
-3. [Project Directory Structure](#project-directory-structure)
-4. [Quickstart & Usage Guide](#quickstart--usage-guide)
-5. [In-Depth Technical Architecture](#in-depth-technical-architecture)
+4. [Project Directory Structure](#project-directory-structure)
+5. [Quickstart & Usage Guide](#quickstart--usage-guide)
+6. [In-Depth Technical Architecture](#in-depth-technical-architecture)
    - [Origami Geometry to RF Discretization Pipeline](#origami-geometry-to-rf-discretization-pipeline)
    - [Mathematical Validity Filtering](#mathematical-validity-filtering)
-   - [Electromagnetic Formulation (Surface EFIE / MoM)](#electromagnetic-formulation-surface-efie--mom)
-6. [Detailed Forward Roadmap (What We Are Going to Do Ahead)](#detailed-forward-roadmap-what-we-are-going-to-do-ahead)
-   - [Phase 5: Rigorous EM Solver Validation & Advanced Integral Equations](#phase-5-rigorous-em-solver-validation--advanced-integral-equations)
-   - [Phase 6: Multi-Physics Kinematics & Thick-Panel Mechanics](#phase-6-multi-physics-kinematics--thick-panel-mechanics)
-   - [Phase 7: Autonomous Multi-Objective Inverse Optimization](#phase-7-autonomous-multi-objective-inverse-optimization)
-   - [Phase 8: Digital Fabrication & Hardware Prototyping Pipeline](#phase-8-digital-fabrication--hardware-prototyping-pipeline)
-7. [Verification & Test Suite](#verification--test-suite)
+   - [Electromagnetic Formulation (Wire EFIE / MoM)](#electromagnetic-formulation-wire-efie--mom)
+7. [Known Limitations](#known-limitations)
+8. [Future Work & Forward Roadmap](#future-work--forward-roadmap)
+9. [Verification & Test Suite](#verification--test-suite)
 
 ---
+
+## Validation Status & Benchmark Evidence
+
+**Research prototype — antenna RF metrics are not validated for origami surfaces or physical measurements.**
+
+> **Scope: wire V-dipole vs NEC2 only; not an origami surface antenna, not a patch, not a measurement.**
+
+The platform targets >95% agreement (error < 5%) for validated resonance, impedance, and S-parameter metrics. In our v0.1 benchmark against independent NEC2 reference data (`data/validation/nec2_reference.json`), **>95% agreement was met only for resonant frequency** ($f_r \le 1.02\%$ error across all tested bend angles). Input resistance $R_{\text{in}}$ meets the 5% gate for straight and moderate bends (0°, 30°, 60°), but fails at steeper bends (90° and 120°).
+
+### Verified Evidence Summary
+
+- **Antenna Solver Formulation**: Galerkin rooftop thin-wire Method of Moments (MoM) with reduced thin-wire kernel, exact static singularity integration ($\mathrm{asinh}$), Gauss-Legendre quadrature for the dynamic remainder, 1 V delta-gap node excitation, and open polyline geometry.
+- **Reciprocity Gate**: PASS. Relative pre-symmetrization matrix asymmetry is $2.3 \times 10^{-5}$, well within the $\le 10^{-4}$ gate.
+- **Mesh Convergence Gate**: PASS. Resonant frequency changes by only $0.068\%$ between 30 and 40 segments (gate $\le 1\%$).
+- **Independent NEC2 Comparison**: Free-space copper wire ($L = 57.46\text{ mm}$, radius $a = 0.5\text{ mm}$, $\sigma = 5.8 \times 10^7\text{ S/m}$, 1.8–3.0 GHz, 61 points). Apex feed node ($N/2$).
+
+#### NEC2 Comparison Results Table (Matched Geometry)
+
+| Bend Angle | NEC2 $f_0$ (GHz) | MoM $f_0$ ($N=40$) | $f_0$ Err ($N=40$) | MoM $f_0$ ($N=80$) | $f_0$ Err ($N=80$) | NEC2 $R_{\text{in}}$ ($\Omega$) | MoM $R_{\text{in}}$ ($N=40$) | $R_{\text{in}}$ Err ($N=40$) | MoM $R_{\text{in}}$ ($N=80$) | $R_{\text{in}}$ Err ($N=80$) | $|X(f_0^{\text{NEC2}})|$ ($N=40$) | $|X(f_0^{\text{NEC2}})|$ ($N=80$) | Status |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **0° (Straight)** | 2.4124 | 2.4343 | 0.91% | 2.4369 | 1.01% | 73.61 | 73.54 | 0.10% | 75.17 | 2.12% | 5.34 $\Omega$ | 5.73 $\Omega$ | **PASS** |
+| **30°** | 2.4213 | 2.4434 | 0.91% | 2.4455 | 1.00% | 70.66 | 69.96 | 0.99% | 71.48 | 1.16% | 5.41 $\Omega$ | 5.67 $\Omega$ | **PASS** |
+| **60°** | 2.4520 | 2.4747 | 0.92% | 2.4751 | 0.94% | 61.82 | 59.66 | 3.49% | 60.85 | 1.57% | 5.51 $\Omega$ | 5.42 $\Omega$ | **PASS** |
+| **90°** | 2.5169 | 2.5406 | 0.94% | 2.5386 | 0.86% | 47.14 | 43.98 | 6.69% | 44.74 | 5.08% | 5.56 $\Omega$ | 4.96 $\Omega$ | **FAIL** ($R_{\text{in}} > 5\%$) |
+| **120°** | 2.6419 | 2.6672 | 0.96% | 2.6623 | 0.77% | 27.79 | 25.57 | 8.00% | 25.93 | 6.72% | 5.34 $\Omega$ | 4.22 $\Omega$ | **FAIL** ($R_{\text{in}} > 5\%$) |
+
+*Gates: $f_r \text{ error} < 5\%$ at all angles (PASSED); $R_{\text{in}} \text{ error} < 5\%$ at each angle (FAILED at 90° and 120°).*
+
+### Unvalidated Quantities
+
+The following quantities remain estimates and must **not** be considered physically validated:
+- **Origami surface / patch antennas**: The benchmark above validates only a thin-wire V-dipole; folding conductive planar facets on flexible substrates is not validated.
+- **Far-field radiation**: Far-field radiation integrals, 3D patterns, radiated power, directivity, half-power beamwidth (HPBW), gain, efficiency, and axial ratio are not validated.
+- **Dielectric loading**: Effective-permittivity approximation is an exploratory estimate, not a full layered-media Green's function solve.
+- **Metasurface / Absorber models**: The separate surface absorber solver provides analytical and unit consistency checks (conservation $R+T+A=1$), but is not physically validated against chamber measurements.
+- **Physical measurements**: Zero physical fabrication or anechoic chamber measurements have been performed.
+
+Read the detailed [metric status and repository audit](docs/STATUS.md) and the generated [validation report](docs/validation_report.md). Regenerate the report with:
+
+```bash
+python -m rf_origami.rf.solver.validation_report
+# Strict mode exits with code 1 while physical acceptance gates fail:
+python -m rf_origami.rf.solver.validation_report --strict
+```
+
+The studio's **Validation** dialog shows the saved report and live diagnostic failures. Antenna results carry Estimate / Not validated labels. Frequency sweeps use local parabolic S11 interpolation and contiguous, interpolated −10 dB crossings. Boundary minima, truncated bands, and frequency steps at or above 1% are flagged. Fold sweeps check panel isometry and non-degeneracy and return an S11 heat map, but physical fold-tuning validation remains pending.
 
 ## Executive Summary & Core Philosophy
 
@@ -68,7 +112,7 @@ Typical origami RF engineering workflows rely on fragmented, proprietary softwar
 
 ## Current Progress & What Has Been Done Till Now
 
-The project has advanced through four complete developmental stages, culminating in a fully functional generative exploration suite with 63 passing unit tests and an interactive web studio.
+The project provides a generative exploration suite and an interactive web studio, backed by 149 automated tests (147 passed, 2 xfailed on strict Rin gates). The sections below describe implemented prototype capabilities; physical antenna validation remains incomplete.
 
 ### Phase 1: Computational Origami & Kinematic Engine
 - **Vector & Transformation Algebra (`core/geometry.py`)**:
@@ -115,10 +159,10 @@ Rather than limiting the user to predefined static patterns, the platform featur
   - Automatic feed-port edge detection and coordinate mapping.
 - **Port System (`rf/ports/lumped_port.py`)**:
   - Delta-gap and lumped ports ($Z_0 = 50\,\Omega$) positioned across conductive facet boundaries.
-- **Method of Moments (MoM) EFIE Solver (`rf/solver/mom_solver.py`)**:
-  - First-principles surface integral equation solver based on the Electric Field Integral Equation (EFIE).
-  - Rao-Wilton-Glisson (RWG) inspired edge-element basis discretization.
-  - Complex impedance matrix $[Z]$ assembly using free-space Green's function:
+- **Method of Moments (MoM) EFIE Solver (`rf/solver/mom_solver.py`, `rf/solver/rooftop_wire.py`)**:
+  - First-principles wire integral equation solver based on the Electric Field Integral Equation (EFIE).
+  - Galerkin rooftop wire basis with a reduced kernel and exact static singularity integration; RWG surface basis functions are not implemented in the antenna solver.
+  - Complex impedance matrix $[Z]$ assembly using reduced thin-wire Green's function with exact asinh static part and Gauss-Legendre quadrature for smooth dynamic remainder:
     $$G(\mathbf{r}, \mathbf{r}') = \frac{e^{-jk|\mathbf{r} - \mathbf{r}'|}}{4\pi |\mathbf{r} - \mathbf{r}'|}$$
   - Direct LU factorization and solution of $[Z][I] = [V]$ over discrete frequency sweeps.
   - Calculation of input impedance:
@@ -268,11 +312,11 @@ RF Origami/
 
 Install dependencies:
 ```bash
-pip install numpy matplotlib pytest
+python -m pip install -r requirements.txt
 ```
 
 ### 2. Run Automated Test Suite
-Verify that all 63 unit tests pass across the entire mathematics, kinematics, and RF solver pipeline:
+Verify that all 136 automated tests pass across the entire mathematics, kinematics, and RF solver pipeline:
 ```bash
 pytest tests -v
 ```
@@ -321,7 +365,7 @@ http://127.0.0.1:8080
 |      RFTriangleMesh      |  <-- Triangulated conductor & substrate facets
 +--------------------------+
              |
-             | Basis Function Discretization (RWG edge pairs)
+             | Approximate wire-segment discretization
              v
 +--------------------------+
 |    MoM EFIE Matrix [Z]   |  <-- In-house Method of Moments formulation
@@ -350,17 +394,41 @@ Before any candidate is simulated, it must satisfy rigorous physical and mathema
 The internal RF solver implements a surface Electric Field Integral Equation (EFIE):
 $$\hat{\mathbf{n}} \times \left[ \mathbf{E}^{\text{inc}}(\mathbf{r}) - j\omega\mu \int_S \mathbf{J}_s(\mathbf{r}') G(\mathbf{r}, \mathbf{r}') dS' - \frac{1}{j\omega\varepsilon} \nabla \int_S (\nabla' \cdot \mathbf{J}_s(\mathbf{r}')) G(\mathbf{r}, \mathbf{r}') dS' \right] = 0$$
 
-- **Discretization**: Conductive surfaces are represented by triangular facet pairs sharing internal edges.
-- **Basis Functions**: Rao-Wilton-Glisson (RWG) inspired vector basis functions represent surface currents $\mathbf{J}_s$.
+- **Discretization**: The antenna solver discretizes open polylines into wire segments. The current panel-to-wire conversion sorts vertices along a spatial axis and is not a physical conductor-path model.
+- **Basis Functions**: Galerkin rooftop basis functions defined on interior nodes between consecutive segments approximate wire currents $\mathbf{I}$, using a reduced thin-wire kernel with exact asinh static part and Gauss-Legendre quadrature.
 - **Impedance Matrix**: Matrix elements $Z_{mn} = \langle \mathbf{f}_m, \mathcal{L}(\mathbf{f}_n) \rangle$ represent mutual electromagnetic coupling.
-- **Port Excitation**: Delta-gap voltage feed $V_m$ applied across designated antenna port edges.
-- **Current Solution**: Direct linear solve $\mathbf{I} = \mathbf{Z}^{-1} \mathbf{V}$ yields complex surface currents at each frequency sample.
+- **Port Excitation**: Delta-gap voltage feed $V$ applied across the designated interior node between segments $p-1$ and $p$.
+- **Current Solution**: Direct linear solve $\mathbf{I} = \mathbf{Z}^{-1} \mathbf{V}$ yields complex currents at each frequency sample.
 
 ---
 
-## Detailed Forward Roadmap (What We Are Going to Do Ahead)
+## Known Limitations
 
-While the foundations, kinematics, generative explorer, and initial MoM solver are functional and tested, the next development phases will transform this project into a comprehensive, publication-grade, production-ready research platform.
+1. **Conductor Topology & Pathing**: The geometric converter sorts conductor vertices along a spatial axis to build an open wire polyline; it does not preserve a physical conductor path or routing topology through continuous origami folding.
+2. **Branching & Closed Loops**: The antenna solver strictly requires a single unbranched open polyline. Branched wire junctions and closed conductive loops or rings are not supported.
+3. **Absence of RWG Surface Basis**: The antenna solver implements a Galerkin rooftop thin-wire basis; it does not implement an RWG (Rao-Wilton-Glisson) surface triangular basis function formulation.
+4. **Substrate & Dielectric Formulation**: Dielectric loading is modeled via an approximate effective-permittivity scalar scaling ($\varepsilon_{\text{eff}} \approx (\varepsilon_r + 1)/2$), not a full layered-media Green's function or dielectric volume/surface integral equation. Substrate-backed patch antennas are not supported in the antenna solver.
+5. **Antenna Far-Field Radiation**: Vector potential radiation integrals are not implemented for the antenna solver. Far-field 3D radiation patterns, radiated power, directivity, gain, efficiency, and axial ratio remain unvalidated estimates.
+6. **Input Resistance at Steep Bends**: While resonant frequency $f_r$ agrees with NEC2 within $1.02\%$ across all bend angles, input resistance $R_{\text{in}}$ at steep bend angles (90° and 120°) exceeds the 5% error threshold (5.08% and 6.72% at $N=80$). Status remains: $f_0$ validated at all angles, $R_{\text{in}}$ validated at 0°, 30°, 60°, not validated at 90° and 120° (strict xfails preserved).
+   - *Convergence Analysis*: For $a = 0.5\text{ mm}$, $N=20 \to 40 \to 80$ shows $R_{\text{in}}$ error converging toward NEC2 ($7.51\% \to 6.69\% \to 5.08\%$ at 90°; $8.70\% \to 8.00\% \to 6.72\%$ at 120°). The claim of thin-wire kernel breakdown at $N=160$ is restricted to $a = 0.5\text{ mm}$ ($\Delta = 0.359\text{ mm} < a = 0.5\text{ mm}$, $\Delta/a = 0.72$), causing artificial delta-gap fringing capacitance that inflates $R_{\text{in}}$ error to $>20\%$. In contrast, at $a = 0.1\text{ mm}$ (where $\Delta/a \ge 3.59$ up to $N=160$), the 90°/120° error does not decrease with refinement and in fact grows at 120° ($8.06\%, 10.06\%, 11.24\%$ for $N = 40, 80, 160$), indicating a systematic solver difference rather than a discretization error.
+   - *Controlled Numerical Isolation*: Quadrature order (outer 8 to 64) is identical to 4 decimal places. Adjacent non-collinear rooftop 2D coupling integrals match independent dense Gauss-Legendre quadrature to $<10^{-6}$ relative error (`test_adjacent_non_collinear_segment_interaction_matches_dense_quadrature`). Solver coordinate projections and $\mathrm{asinh}$ static singularity kernels are exact.
+   - *Radius Sweep Experiment (`scripts/radius_sweep.py`)*: Controlled sweep across wire radii $a \in [0.5, 0.25, 0.1]\text{ mm}$ refuted the wire-cylinder overlap hypothesis. When $a$ is reduced to $0.1\text{ mm}$ (shrinking the overlap region by $5\times$), the $R_{\text{in}}$ error at $90^\circ$ and $120^\circ$ does not drop below 5%; for converged segment counts ($N=80, 160$), it persists at $5.7\%-7.0\%$ ($90^\circ$) and $10.1\%-11.2\%$ ($120^\circ$). In contrast, for straight dipoles ($0^\circ$), NEC2 and MoM agree within $0.18\%-0.24\%$ at $a=0.1\text{ mm}$ across $N \in [40, 80, 160]$.
+   - *NEC2 Feed and Junction Sensitivity (`scripts/nec2_sensitivity.py`)*: Evaluated NEC2 modeling choices at $a = 0.5\text{ mm}$ ($N=40, 80$): feed on arm 1 vs arm 2 (0.00% difference), center feed on a single bent wire (not possible in NEC-2 as wire cards must be straight cylinders; 0.00%–0.11% difference at 0°), and extended thin-wire kernel EK (-0.13% to -0.69% at 0°–90°, -0.62% to -1.22% at 120°). The spread of NEC2 $R_{\text{in}}$ across these modeling options is small (<2% at both 90° and 120°), confirming the reference is stable against these choices. MoM $R_{\text{in}}$ falls strictly outside the NEC2 spread at 90° and 120°. The hypothesis that feed/junction conventions explain the 5%–11% MoM gap remains an untested hypothesis unsupported by NEC2 sensitivity data.
+   - *NEC2 Self-Convergence at 120°*: NEC2's own $R_{\text{in}}$ at $120^\circ$ drifts from $28.63\,\Omega$ ($N=40$) to $27.79\,\Omega$ ($N=80$) and $27.23\,\Omega$ ($N=160$), an internal drift of about 5% (4.89%). Consequently, the 5% validation gate at 120° cannot cleanly separate solver error from reference uncertainty.
+7. **No Physical Measurements**: All results are computational. No physical prototypes have been fabricated or measured in an anechoic chamber.
+
+---
+
+## Future Work & Forward Roadmap
+
+The future development roadmap addresses these known limitations to advance the platform from a research prototype toward experimental maturity:
+
+1. **Input Resistance ($R_{\text{in}}$) Convergence**: Refine the apex singularity treatment and charge accumulation modeling at sharp bend angles ($90^\circ$ and $120^\circ$) to achieve $<5\%$ $R_{\text{in}}$ error across the entire folding range.
+2. **Topological Conductor Path Preservation**: Implement graph-aware trace routing that preserves continuous physical conductor paths through arbitrary 3D folding sequences.
+3. **Junction & Loop Formulations**: Develop multi-wire junction basis functions and closed loop formulations to enable folded loop antennas, spiral antennas, and multi-arm structures.
+4. **Substrate-Aware Surface MoM**: Formulate RWG surface basis functions and layered-media Green's functions for origami patch antennas on flexible dielectric substrates (e.g., Kapton, PET).
+5. **Antenna Far-Field Integral**: Implement near-to-far field transformations from solved rooftop and RWG current distributions to compute 3D radiation patterns, realized gain, and axial ratio.
+6. **Physical Fabrication & Chamber Measurement Campaign**: Fabricate physical prototypes and validate simulated return loss and radiation patterns against vector network analyzer (VNA) and anechoic chamber measurements.
 
 ```
 +-------------------------------------------------------------------------------+
@@ -460,32 +528,40 @@ Bridge computational design with physical laboratory hardware fabrication:
 
 ## Verification & Test Suite
 
-The codebase enforces strict unit testing across all modules.
+The codebase enforces automated testing across all modules.
 
 Run the test suite:
 ```powershell
-pytest tests -v
+python -m pytest tests -v
 ```
 
-### Current Test Coverage (63 Tests Passing)
+### Current Test Coverage (149 Tests: 147 Passed, 2 xfailed)
 
-| Test Module | Coverage & Verified Behaviors | Passing |
-| :--- | :--- | :---: |
-| `test_geometry.py` | Vector3D algebra, Rodrigues transforms, Euler angles, Newell normal, polygon area, coplanarity | 8 / 8 |
-| `test_crease_pattern.py` | Graph creation, edge lookups, Kawasaki theorem, Maekawa theorem, FOLD JSON serialization | 5 / 5 |
-| `test_mesh.py` | FoldedMesh creation, triangulation, bounding boxes, principal dimensions, surface areas | 2 / 2 |
-| `test_parameters.py` | Parameter type checks, range validation, default assignments, grid sweeps, Monte Carlo sampling | 5 / 5 |
-| `test_kinematics.py` | Miura-ori kinematics, fold angle propagation, 3D vertex positions, edge length conservation | 3 / 3 |
-| `test_patterns.py` | Miura-Ori, Yoshimura, Waterbomb, Degree-4 Vertex pattern generators and parameter schemas | 5 / 5 |
-| `test_generator.py` | DesignSpace definition, Latin Hypercube Sampling, constraint filtering, candidate batch generation | 5 / 5 |
-| `test_rf_materials.py` | Conductor and dielectric properties, surface resistance, permittivity, loss tangent | 4 / 4 |
-| `test_rf_geometry.py` | FoldedMesh to RFTriangleMesh conversion, facet material tagging, boundary extraction | 3 / 3 |
-| `test_rf_ports.py` | LumpedPort creation, delta-gap port definition, impedance assignment, port coordinate lookups | 3 / 3 |
-| `test_rf_metrics.py` | Resonant frequency detection, S11 minimum search, -10 dB bandwidth, VSWR, Q-factor | 4 / 4 |
-| `test_em_solver.py` | MoM EFIE impedance matrix assembly, LU decomposition, current solve, Zin/S11 calculation | 4 / 4 |
-| `test_visualization.py` | 2D crease pattern Matplotlib generation, 3D mesh Matplotlib plotting, procedural SVG exports | 3 / 3 |
-| `test_web.py` | Web service endpoints (`/api/explore`, `/api/generate`, `/api/fold`, `/api/rf/simulate`, etc.) | 9 / 9 |
-| **Total** | **Full verification across entire computational stack** | **63 / 63** |
+The suite covers geometry, patterns, kinematics, RF calculations, absorber models, optimization, fabrication, web services, and validation integrity:
+
+- **147 Passed**: Unit tests, numerical regression checks, and passing benchmarks (including 0°, 30°, and 60° V-dipole NEC2 comparisons and adjacent non-collinear 2D quadrature integrity).
+- **2 xfailed**: Strict $R_{\text{in}}$ acceptance gates on the wire V-dipole at 90° and 120° bend angles (`test_nec2_v_dipole_fold_sweep_strict_gates[90]` and `[120]`), where $R_{\text{in}}$ error exceeds the 5% gate. Marked as strict expected failures to immediately flag regressions.
+- **Physical Acceptance**: Passing unit tests do not establish physical antenna accuracy. Physical acceptance metrics remain visible in the generated [validation report](docs/validation_report.md).
+
+### Reproducibility & Commands
+
+Run the complete validation workflow locally:
+
+```bash
+# 1. Install dependencies
+python -m pip install -r requirements.txt
+
+# 2. Run the test suite (147 passed, 2 xfailed expected)
+python -m pytest tests -v
+
+# 3. Generate the Markdown and JSON validation report
+python -m rf_origami.rf.solver.validation_report
+
+# 4. Strict gate check (exits 1 while 90° and 120° Rin gates fail)
+python -m rf_origami.rf.solver.validation_report --strict
+```
+
+> **Note on Reference Data**: The independent NEC2 reference dataset (`data/validation/nec2_reference.json`) is generated by `generate_nec2_reference.py` using `necpp` (`pip install necpp`, which requires a C compiler and may not install cleanly on Windows). The committed JSON file must never be edited by hand.
 
 ---
 

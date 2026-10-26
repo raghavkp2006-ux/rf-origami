@@ -2585,18 +2585,23 @@ async function runRFSimulation() {
 
     // Update Live Metrics Dashboard
     const res = data.resonance || {};
-    document.getElementById("rf-stat-f0").textContent = `${res.resonant_frequency_ghz || 0} GHz`;
-    document.getElementById("rf-stat-s11").textContent = `${res.min_s11_db || 0} dB`;
-    document.getElementById("rf-stat-vswr").textContent = `${res.vswr_at_resonance || 0}`;
-    document.getElementById("rf-stat-bw").textContent = `${res.bandwidth_mhz || 0} MHz (${res.bandwidth_percent || 0}%)`;
+    document.getElementById("rf-resolution-note").textContent = res.at_sweep_boundary
+      ? "Minimum occurs at a sweep boundary. Expand the frequency range before interpreting resonance."
+      : res.resolution_better_than_one_percent
+        ? "Frequency step is below 1% at the interpolated S11 minimum. Physical accuracy remains not validated."
+        : "Coarse frequency sweep: increase samples or narrow the frequency range to resolve resonance below 1%.";
+    document.getElementById("rf-stat-f0").textContent = `${Number(res.resonant_frequency_ghz || 0).toFixed(4)} GHz`;
+    document.getElementById("rf-stat-s11").textContent = `${Number(res.min_s11_db || 0).toFixed(2)} dB`;
+    document.getElementById("rf-stat-vswr").textContent = `${Number(res.vswr_at_resonance || 0).toFixed(2)}`;
+    document.getElementById("rf-stat-bw").textContent = `${Number(res.bandwidth_mhz || 0).toFixed(1)} MHz (${Number(res.bandwidth_percent || 0).toFixed(2)}%)${res.truncated ? " · sweep truncated" : ""}`;
     if (res.zin_at_resonance) {
-      document.getElementById("rf-stat-zin").textContent = `${res.zin_at_resonance[0]} + j${res.zin_at_resonance[1]} Ω`;
+      document.getElementById("rf-stat-zin").textContent = `${res.zin_at_resonance[0].toFixed(2)} + j${res.zin_at_resonance[1].toFixed(2)} Ω`;
     }
     document.getElementById("rf-stat-segments").textContent = `${data.discretization?.num_segments || 0}`;
     
     const resBadge = document.getElementById("rf-resonance-badge");
     if (resBadge) {
-      resBadge.textContent = `f₀: ${res.resonant_frequency_ghz} GHz | Min S11: ${res.min_s11_db} dB`;
+      resBadge.textContent = `Estimate · f₀: ${res.resonant_frequency_ghz.toFixed(4)} GHz | S11: ${res.min_s11_db.toFixed(2)} dB`;
     }
 
     // Render Both Canvas Charts
@@ -2881,9 +2886,9 @@ async function runRFFoldSweep() {
         pattern_type: ptype,
         params: cand.parameters,
         fold_angles: [15.0, 30.0, 45.0, 60.0, 75.0],
-        f_start_ghz: 1.0,
-        f_stop_ghz: 6.0,
-        num_points: 15,
+        f_start_ghz: Number(document.getElementById("insp-rf-fstart").value),
+        f_stop_ghz: Number(document.getElementById("insp-rf-fstop").value),
+        num_points: Number(document.getElementById("insp-rf-npts").value),
         substrate_material: subMat,
         conductor_material: condMat,
       }),
@@ -2903,10 +2908,11 @@ async function runRFFoldSweep() {
       html += `<table style="width: 100%; border-collapse: collapse; font-size: 9.5px;">`;
       html += `<thead><tr style="border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); text-align: left;"><th>θ</th><th>f₀</th><th>S11</th><th>Envelope</th></tr></thead><tbody>`;
       data.step_results.forEach(s => {
-        html += `<tr style="border-bottom: 1px solid var(--border-light);"><td>${s.fold_angle_deg}°</td><td style="color: var(--accent-primary); font-weight: 700;">${s.resonant_frequency_ghz}G</td><td>${s.min_s11_db}dB</td><td>${s.dimensions_mm[0]}×${s.dimensions_mm[1]}mm</td></tr>`;
+        html += `<tr style="border-bottom: 1px solid var(--border-light);"><td>${s.fold_angle_deg}°</td><td style="color: var(--accent-primary); font-weight: 700;">${s.resonant_frequency_ghz.toFixed(4)}G${s.at_sweep_boundary ? " (boundary)" : ""}</td><td>${s.min_s11_db.toFixed(2)}dB</td><td>${s.dimensions_mm[0]}×${s.dimensions_mm[1]}mm</td></tr>`;
       });
       html += `</tbody></table>`;
       content.innerHTML = html;
+      renderFoldHeatmap(data.heatmap);
     }
 
     updateStatus(`Fold Sweep Complete: Tuning Range = ${data.tuning_range_ghz} GHz across 15° to 75°`);
@@ -2921,11 +2927,52 @@ async function runRFFoldSweep() {
   }
 }
 
+function renderFoldHeatmap(data) {
+  const canvas = document.getElementById("rf-fold-heatmap");
+  if (!canvas || !data?.angles_deg?.length || !data.frequencies_ghz?.length) return;
+  const width = canvas.clientWidth || 300, height = 190;
+  const ratio = window.devicePixelRatio || 1;
+  canvas.width = width * ratio;
+  canvas.height = height * ratio;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(ratio, ratio);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, width, height);
+  const left = 38, top = 15, plotWidth = width - 48, plotHeight = height - 48;
+  const rows = data.angles_deg.length, columns = data.frequencies_ghz.length;
+  data.s11_db.forEach((row, i) => row.forEach((value, j) => {
+    const t = Math.max(0, Math.min(1, -value / 30));
+    ctx.fillStyle = `rgb(${Math.round(245 - 208 * t)},${Math.round(158 - 59 * t)},${Math.round(11 + 224 * t)})`;
+    ctx.fillRect(left + j * plotWidth / columns, top + i * plotHeight / rows, plotWidth / columns + .5, plotHeight / rows + .5);
+  }));
+  ctx.fillStyle = "#334155";
+  ctx.font = "10px sans-serif";
+  ctx.textAlign = "right";
+  data.angles_deg.forEach((angle, i) => ctx.fillText(`${angle}°`, left - 5, top + (i + .5) * plotHeight / rows + 3));
+  ctx.textAlign = "left";
+  ctx.fillText(data.frequencies_ghz[0].toFixed(2), left, height - 19);
+  ctx.textAlign = "right";
+  ctx.fillText(data.frequencies_ghz[columns - 1].toFixed(2), width - 10, height - 19);
+  ctx.textAlign = "center";
+  ctx.fillText("Frequency (GHz) · S11 estimate", left + plotWidth / 2, height - 4);
+}
+
 async function loadBenchmarks() {
-  updateStatus("Verifying MoM solver against canonical analytical benchmarks...");
+  updateStatus("Running antenna solver diagnostics...");
+  const statusIds = ["freespace", "dipole", "monopole"];
+  for (const id of statusIds) {
+    const badge = document.getElementById(`bench-status-${id}`);
+    badge.textContent = "Running…";
+    badge.className = "status-tag";
+  }
   try {
+    const reportResp = await fetch("/api/rf/validation");
+    if (!reportResp.ok) throw new Error(`Validation report unavailable (${reportResp.status})`);
+    const report = await reportResp.json();
+    document.getElementById("validation-report-content").textContent = report.markdown;
+    renderValidationSummary(report);
     const resp = await fetch("/api/rf/benchmarks");
-    if (!resp.ok) return;
+    if (!resp.ok) throw new Error(`Diagnostics unavailable (${resp.status})`);
 
     const data = await resp.json();
     appState.rf.benchmarks = data;
@@ -2957,10 +3004,53 @@ async function loadBenchmarks() {
       mpZin.textContent = `${mp.numerical_zin_ohms[0]} + j${mp.numerical_zin_ohms[1]} Ω`;
     }
 
-    updateStatus("Canonical benchmarks verified successfully. 100% In-house standalone MoM solver.");
+    [fs, dp, mp].forEach((result, i) => {
+      const badge = document.getElementById(`bench-status-${statusIds[i]}`);
+      badge.textContent = result.passed ? "Diagnostic pass" : "Failed / Not validated";
+      badge.className = `status-tag ${result.passed ? "tag-valid" : "tag-invalid"}`;
+    });
+    const passed = [fs, dp, mp].filter(result => result.passed === true).length;
+    updateStatus(`${passed}/3 diagnostics passed. Antenna accuracy remains not validated.`);
   } catch (err) {
     console.error("Benchmark verification error:", err);
+    document.getElementById("validation-report-content").textContent = err.message;
+    document.getElementById("validation-summary").textContent = err.message;
+    for (const id of statusIds) document.getElementById(`bench-status-${id}`).textContent = "Unavailable";
+    updateStatus(`Validation unavailable: ${err.message}`);
   }
+}
+
+function renderValidationSummary(data) {
+  const container = document.getElementById("validation-summary");
+  container.replaceChildren();
+  const note = document.createElement("p");
+  note.textContent = data.stale ? "Saved diagnostics are stale. Regenerate the report for the current solver." : "Physical antenna validation: Not validated.";
+  container.append(note);
+  if (!data.report) {
+    note.textContent = data.markdown;
+    return;
+  }
+  const table = document.createElement("table");
+  table.className = "validation-results";
+  const header = table.createTHead().insertRow();
+  for (const title of ["Case", "Result", "Evidence"] ) {
+    const cell = document.createElement("th");
+    cell.textContent = title;
+    header.append(cell);
+  }
+  const body = table.createTBody();
+  const cases = [["free_space", "Free-space constants"], ["half_wave_dipole", "Dipole screening"], ["quarter_wave_monopole", "Image monopole"], ["reciprocity", "Reciprocity"], ["mesh_convergence", "Mesh convergence"], ["independent_reference", "Independent reference"], ["patch", "Patch model"], ["fold_sweep_reference", "Fold reference"]];
+  for (const [key, label] of cases) {
+    const result = data.report[key];
+    if (!result) continue;
+    let evidence = result.status || result.notes || "Constitutive constants only";
+    if (key === "reciprocity") evidence = `Matrix asymmetry ${result.max_absolute_asymmetry_ohms.toPrecision(4)} Ω; limit 1e-10 Ω`;
+    if (key === "mesh_convergence") evidence = result.finest_change_percent == null ? "No reactance crossing found" : `${result.finest_change_percent.toFixed(3)}% frequency change; limit <1%`;
+    if (result.rin_error_percent != null) evidence = `Rin error ${result.rin_error_percent.toFixed(2)}%; |Xin| ${result.reactance_absolute_error_ohms.toFixed(2)} Ω. Approximate target only.`;
+    const row = body.insertRow();
+    for (const text of [label, result.passed ? "Diagnostic pass" : "Failed / pending", evidence]) row.insertCell().textContent = text;
+  }
+  container.append(table);
 }
 
 // =====================================================================

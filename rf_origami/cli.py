@@ -110,12 +110,12 @@ def main(args: Optional[List[str]] = None) -> int:
             print(json.dumps(results, indent=2))
         else:
             print("\n=======================================================")
-            print("  RF ORIGAMI FORGE: EM PHYSICS VALIDATION BENCHMARKS")
+            print("  RF ORIGAMI FORGE: ABSORBER BENCHMARKS (Analytical consistency checks - not physical validation)")
             print("=======================================================\n")
             for b in results.get("benchmarks", []):
                 status = "PASS" if b.get("passed") else "FAIL"
                 print(f"[{status}] {b.get('name')}")
-            print(f"\nOverall Status: {'ALL PASSED (100%)' if results.get('all_passed') else 'FAILED'}\n")
+            print(f"\nOverall Status: {'BENCHMARKS PASSED (Software consistency only - not physical validation)' if results.get('all_passed') else 'FAILED'}\n")
         return 0 if results.get("all_passed") else 1
 
     elif parsed.command == "simulate":
@@ -138,7 +138,7 @@ def main(args: Optional[List[str]] = None) -> int:
         bw_mhz = round(sim_res.get("absorption_bandwidth_hz", 0) / 1e6, 1)
 
         print("\n=======================================================")
-        print("  RF SURFACE MoM SIMULATION RESULTS")
+        print("  RF SURFACE MoM SIMULATION RESULTS (Estimate - not validated)")
         print("=======================================================")
         print(f"Pattern:            {parsed.pattern} (Fold θ = {parsed.fold}°)")
         print(f"Resonant Frequency: {f0_ghz} GHz")
@@ -164,7 +164,7 @@ def main(args: Optional[List[str]] = None) -> int:
             num_points=parsed.points,
         )
         print("\n=======================================================")
-        print("  2D FOLD ANGLE FREQUENCY TUNING SWEEP")
+        print("  2D FOLD ANGLE FREQUENCY TUNING SWEEP (Estimate - not validated)")
         print("=======================================================")
         print(f"Tuning Range: {sweep_res.get('tuning_range_ghz')} GHz")
         print(f"Tuning Ratio: {sweep_res.get('tuning_ratio')}x")
@@ -192,7 +192,7 @@ def main(args: Optional[List[str]] = None) -> int:
             f_stop_ghz=parsed.fstop,
         )
         print("\n=======================================================")
-        print("  METASURFACE REFLECTION PHASE AGILITY")
+        print("  METASURFACE REFLECTION PHASE AGILITY (Estimate - not validated)")
         print("=======================================================")
         print(f"Center Frequency:     {round(phase_res.center_frequency_hz / 1e9, 2)} GHz")
         print(f"Max Phase Agility ΔΦ: {round(phase_res.max_phase_agility_deg, 1)}°")
@@ -211,7 +211,7 @@ def main(args: Optional[List[str]] = None) -> int:
             f_stop_ghz=parsed.fstop,
         )
         print("\n=======================================================")
-        print("  POLARIZATION CONVERSION ANALYSIS")
+        print("  POLARIZATION CONVERSION ANALYSIS (Estimate - not validated)")
         print("=======================================================")
         print(f"Peak PCR:       {round(pol_res.peak_pcr * 100, 1)}%")
         print(f"Peak Frequency: {round(pol_res.peak_pcr_freq_hz / 1e9, 3)} GHz")
@@ -229,7 +229,7 @@ def main(args: Optional[List[str]] = None) -> int:
             frequency_hz=parsed.freq * 1e9,
         )
         print("\n=======================================================")
-        print("  FAR-FIELD RADAR CROSS SECTION (RCS)")
+        print("  FAR-FIELD RADAR CROSS SECTION (RCS) (Estimate - not validated)")
         print("=======================================================")
         print(f"Frequency:         {parsed.freq} GHz")
         print(f"Monostatic RCS:    {round(rcs_res.monostatic_rcs_dbsm, 2)} dBsm")
@@ -250,7 +250,7 @@ def main(args: Optional[List[str]] = None) -> int:
             f_stop_ghz=parsed.fstop,
         )
         print("\n=======================================================")
-        print("  EQUIVALENT CIRCUIT MODEL (ECM) PREDICTION")
+        print("  EQUIVALENT CIRCUIT MODEL (ECM) PREDICTION (Estimate - not validated)")
         print("=======================================================")
         print(f"Grid Inductance Lg:  {ecm_res.grid_inductance_nh:.4f} nH")
         print(f"Grid Capacitance Cg: {ecm_res.grid_capacitance_pf:.4f} pF")
@@ -269,7 +269,7 @@ def main(args: Optional[List[str]] = None) -> int:
         )
         pareto = opt_res.get("pareto_front", [])
         print("\n=======================================================")
-        print("  NSGA-II MULTI-OBJECTIVE OPTIMIZATION")
+        print("  NSGA-II MULTI-OBJECTIVE OPTIMIZATION (Estimate - not validated)")
         print("=======================================================")
         print(f"Target Frequency:  {parsed.target_freq} GHz")
         print(f"Pareto Solutions:  {len(pareto)}")
@@ -293,7 +293,7 @@ def main(args: Optional[List[str]] = None) -> int:
         )
         with open(parsed.out, "wb") as f:
             f.write(zip_bytes)
-        print(f"\nSuccessfully generated production release package: {parsed.out} ({len(zip_bytes)} bytes)\n")
+        print(f"\nSuccessfully generated prototype fabrication package: {parsed.out} ({len(zip_bytes)} bytes)\n")
         return 0
 
     return 0

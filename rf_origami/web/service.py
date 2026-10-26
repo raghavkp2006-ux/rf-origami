@@ -403,6 +403,24 @@ class OrigamiWebService:
         }
 
     @classmethod
+    def get_validation_report(cls) -> Dict[str, Any]:
+        """Serve the saved report without running expensive validation on GET."""
+        import json
+        from pathlib import Path
+        from rf_origami.rf.solver.validation_report import MODEL_LIMITATIONS, source_fingerprint
+        root = Path(__file__).resolve().parents[2] / "docs"
+        report_path = root / "validation_report.json"
+        markdown_path = root / "validation_report.md"
+        saved_report = json.loads(report_path.read_text(encoding="utf-8")) if report_path.exists() else None
+        return {
+            "validation_status": "Not validated",
+            "model_limitations": MODEL_LIMITATIONS,
+            "report": saved_report,
+            "stale": saved_report is not None and saved_report.get("provenance", {}).get("source_sha256") != source_fingerprint(),
+            "markdown": markdown_path.read_text(encoding="utf-8") if markdown_path.exists() else "Report not generated. Run python -m rf_origami.rf.solver.validation_report.",
+        }
+
+    @classmethod
     def simulate_rf(
         cls,
         pattern_type: str,
@@ -423,6 +441,8 @@ class OrigamiWebService:
         from rf_origami.rf.mesh.discretization import EMDiscretization
         from rf_origami.rf.ports.lumped_port import LumpedPort
         from rf_origami.rf.solver.mom_solver import MoMSolver
+        from rf_origami.rf.mesh.quality import validate_fold_mesh
+        from rf_origami.rf.solver.validation_report import MODEL_LIMITATIONS
 
         key = pattern_type.lower().replace("-", "_").strip()
         if key not in cls.PATTERN_REGISTRY:
@@ -458,6 +478,8 @@ class OrigamiWebService:
             fold_angle_deg=fold_angle_deg,
         )
         mesh_3d._face_materials = [f.material_tag for f in pattern.faces]
+        reference_mesh = FoldingEngine.fold(key, pattern, params, fold_angle_deg=0.0)
+        mesh_quality = validate_fold_mesh(mesh_3d, reference_mesh)
 
         # Look up materials from library
         sub_mat = MaterialLibrary.get(substrate_material)
@@ -498,6 +520,10 @@ class OrigamiWebService:
 
         return {
             "simulation_type": "mom_solver",
+            "validation_status": "Not validated",
+            "metric_status": {name: "Estimate" for name in ("resonance", "s11", "return_loss", "vswr", "impedance", "bandwidth", "fold_tuning")},
+            "model_limitations": MODEL_LIMITATIONS,
+            "mesh_quality": mesh_quality,
             "solver_engine": "Standalone EFIE-MoM (Pocklington with Harrington Integral Kernel)",
             "is_numerical": True,
             "commercial_software_used": False,
@@ -561,6 +587,9 @@ class OrigamiWebService:
                 "vswr_at_resonance": res["vswr_at_resonance"],
                 "bandwidth_mhz": res["bandwidth_mhz"],
                 "dimensions_mm": sim["folded_dimensions_mm"],
+                "mesh_quality": sim["mesh_quality"],
+                "at_sweep_boundary": res["at_sweep_boundary"],
+                "frequency_sweep": sim["frequency_sweep"],
             })
 
         valid_f0 = [f for f in f0_list if f > 0]
@@ -576,6 +605,8 @@ class OrigamiWebService:
             "tuning_range_ghz": tuning_range,
             "tuning_ratio": tuning_ratio,
             "step_results": results,
+            "validation_status": "Not validated",
+            "heatmap": {"angles_deg": fold_angles, "frequencies_ghz": results[0]["frequency_sweep"]["frequencies_ghz"] if results else [], "s11_db": [r["frequency_sweep"]["s11_db"] for r in results]},
         }
 
     # =========================================================================

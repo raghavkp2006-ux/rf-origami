@@ -9,3 +9,6 @@ _git*.txt
 _task*.txt
 .worktrees/
 .kilo/
+build/
+dist/
+*.egg-info/

@@ -84,7 +84,7 @@ class EMDiscretization:
         cls,
         start_pt: Sequence[float],
         end_pt: Sequence[float],
-        num_segments: int = 21,
+        num_segments: int = 20,
         radius_mm: float = 0.5,
         feed_at_center: bool = True,
     ) -> EMDiscretization:
@@ -104,7 +104,7 @@ class EMDiscretization:
                 radius_mm=radius_mm,
             ))
 
-        port_idx = num_segments // 2 if feed_at_center else 0
+        port_idx = num_segments // 2 if feed_at_center else 1
         total_len = float(np.linalg.norm(p2 - p1))
 
         return cls(

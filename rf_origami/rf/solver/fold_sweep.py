@@ -14,6 +14,7 @@ from rf_origami.patterns.waterbomb import WaterbombPattern
 from rf_origami.patterns.yoshimura import YoshimuraPattern
 from rf_origami.rf.geometry.converter import RFGeometryConverter
 from rf_origami.rf.mesh.discretization import EMDiscretization
+from rf_origami.rf.mesh.quality import validate_fold_mesh
 from rf_origami.rf.ports.lumped_port import LumpedPort
 from rf_origami.rf.solver.mom_solver import MoMSolver
 from rf_origami.rf.metrics.result import RFSimulationResult
@@ -53,6 +54,7 @@ class FoldAngleSweepRunner:
         valid_keys = set(gen.default_parameters().keys())
         clean_params = {k: v for k, v in params.items() if k in valid_keys}
         crease_pattern = gen.generate(**clean_params)
+        reference_mesh = FoldingEngine.fold(ptype, crease_pattern, clean_params, fold_angle_deg=0.0)
 
         results: List[RFSimulationResult] = []
         comparison_table: List[Dict[str, Any]] = []
@@ -65,6 +67,7 @@ class FoldAngleSweepRunner:
                 params=clean_params,
                 fold_angle_deg=float(theta),
             )
+            quality = validate_fold_mesh(folded_mesh, reference_mesh)
 
             # Convert to physical RF model
             rf_geom = RFGeometryConverter.from_folded_mesh(
@@ -124,6 +127,8 @@ class FoldAngleSweepRunner:
                 "vswr": res_info["vswr_at_resonance"],
                 "bandwidth_mhz": res_info["bandwidth_mhz"],
                 "total_length_mm": round(discretization.total_length_mm, 1),
+                "mesh_quality": quality,
+                "at_sweep_boundary": res_info["at_sweep_boundary"],
             })
 
         return {
@@ -132,4 +137,7 @@ class FoldAngleSweepRunner:
             "angles_evaluated": angles,
             "comparison_table": comparison_table,
             "results": [r.to_dict() for r in results],
+            "validation_status": "Not validated",
+            "tuning_ratio": max(r.resonant_frequency_ghz for r in results) / min(r.resonant_frequency_ghz for r in results) if results else None,
+            "heatmap": {"angles_deg": angles, "frequencies_ghz": results[0].frequencies_ghz if results else [], "s11_db": [r.s11_db for r in results]},
         }

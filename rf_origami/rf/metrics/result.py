@@ -27,7 +27,7 @@ class RFSimulationResult:
     bandwidth_mhz: float
     bandwidth_percent: float
     solver_name: str = "MoM_EFIE_Pocklington"
-    is_validated_numerical: bool = True
+    is_validated_numerical: bool = False
     port_settings: Dict[str, Any] = field(default_factory=dict)
     materials: Dict[str, Any] = field(default_factory=dict)
     mesh_statistics: Dict[str, Any] = field(default_factory=dict)
@@ -48,11 +48,12 @@ class RFSimulationResult:
                 "min_s11_db": round(float(self.min_s11_db), 2),
                 "bandwidth_mhz": round(float(self.bandwidth_mhz), 1),
                 "bandwidth_percent": round(float(self.bandwidth_percent), 2),
-                "status": "NUMERICAL_EM_VALIDATED" if self.is_validated_numerical else "ANALYTICAL_ESTIMATE",
+                "status": "NUMERICAL_EM_VALIDATED" if self.is_validated_numerical else "NUMERICAL_EM_NOT_VALIDATED",
             },
             "solver": {
                 "name": self.solver_name,
-                "is_numerical": self.is_validated_numerical,
+                "is_numerical": True,
+                "is_validated": self.is_validated_numerical,
             },
             "port": self.port_settings,
             "materials": self.materials,
@@ -82,7 +83,7 @@ class RFSimulationResult:
             bandwidth_mhz=float(metrics.get("bandwidth_mhz", 0.0)),
             bandwidth_percent=float(metrics.get("bandwidth_percent", 0.0)),
             solver_name=solver.get("name", "MoM_EFIE_Pocklington"),
-            is_validated_numerical=bool(solver.get("is_numerical", True)),
+            is_validated_numerical=bool(solver.get("is_validated", False)),
             port_settings=data.get("port", {}),
             materials=data.get("materials", {}),
             mesh_statistics=data.get("mesh", {}),

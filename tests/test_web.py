@@ -94,8 +94,8 @@ def test_web_rf_benchmarks():
     assert "half_wave_dipole" in benchmarks
     assert "quarter_wave_monopole" in benchmarks
     assert benchmarks["free_space"]["passed"] is True
-    assert benchmarks["half_wave_dipole"]["passed"] is True
-    assert benchmarks["quarter_wave_monopole"]["passed"] is True
+    assert benchmarks["half_wave_dipole"]["validation_status"] == "Not validated"
+    assert benchmarks["quarter_wave_monopole"]["independent_benchmark"] is False
 
 
 def test_web_rf_simulate():

@@ -1,0 +1,687 @@
+{
+  "schema_version": 1,
+  "provenance": {
+    "source_sha256": "8614bddb86f4b16e298c8e1d0352f3911ec0dc462f3a97d851aaf4968b68882b",
+    "python": "3.12.10",
+    "numpy": "2.5.3"
+  },
+  "validation_status": "Not validated",
+  "free_space": {
+    "name": "Free-Space Wave Parameters",
+    "passed": true,
+    "speed_of_light_m_s": 299792458.0,
+    "speed_of_light_expected": 299792458.0,
+    "wave_impedance_ohms": 376.73,
+    "wave_impedance_expected": 376.73,
+    "relative_error": 3.021647753861741e-12
+  },
+  "half_wave_dipole": {
+    "name": "Half-Wave Dipole Benchmark",
+    "frequency_ghz": 2.4,
+    "total_length_mm": 57.46,
+    "wavelength_mm": 124.91,
+    "num_segments": 20,
+    "numerical_zin_ohms": [
+      68.4,
+      -9.74
+    ],
+    "theoretical_expected_rin": "Approximate screening target: 73.13 ohms (infinitely thin wire)",
+    "numerical_s11_db": -15.13,
+    "numerical_vswr": 1.42,
+    "passed": null,
+    "status": "Screening value only (0.5 mm radius, 57.46 mm dipole is not an infinitely thin half-wave dipole)",
+    "rin_error_percent": 6.46996943379319,
+    "reactance_absolute_error_ohms": 9.743237993478536,
+    "validation_status": "Not validated",
+    "reference_kind": "Approximate textbook screening target, not a matched-geometry reference",
+    "notes": "Fixed-frequency screening only. 73.13 ohms is for an idealized infinitely thin half-wave dipole, not a matched-geometry reference for a finite-radius wire."
+  },
+  "quarter_wave_monopole": {
+    "name": "Quarter-Wave Monopole Benchmark",
+    "frequency_ghz": 2.4,
+    "monopole_length_mm": 28.73,
+    "numerical_zin_ohms": [
+      34.2,
+      -4.87
+    ],
+    "theoretical_expected_rin": "35 - 38 \u03a9",
+    "passed": null,
+    "status": "Screening value only (image-scaled dipole consistency check)",
+    "rin_error_percent": 6.46996943379319,
+    "reactance_absolute_error_ohms": 4.871618996739268,
+    "validation_status": "Not validated",
+    "independent_benchmark": false,
+    "notes": "Image-scaled dipole consistency check; not a second independent antenna benchmark."
+  },
+  "reciprocity": {
+    "max_relative_asymmetry": 2.3295405933106336e-05,
+    "max_absolute_asymmetry_ohms": 2.3295405933106336e-05,
+    "tolerance": 0.0001,
+    "tolerance_ohms": 0.0001,
+    "passed": true
+  },
+  "mesh_convergence": {
+    "meshes": [
+      {
+        "num_segments": 10,
+        "resonant_frequency_hz": 2423160457.5643983,
+        "resonant_frequency_ghz": 2.4231604575643986,
+        "min_s11_db": -15.587064379393325,
+        "min_index": 31,
+        "interpolated": true,
+        "at_sweep_boundary": false,
+        "frequency_step_percent": 0.8253683711933252,
+        "resolution_better_than_one_percent": true,
+        "zero_reactance_f0_ghz": 2.4491839069406844,
+        "has_bandwidth": true,
+        "truncated": false,
+        "threshold_db": -10.0,
+        "bandwidth_mhz": 252.09046184572506,
+        "bandwidth_percent": 10.361106915351073,
+        "f_low_ghz": 2.3070004263150383,
+        "f_high_ghz": 2.5590908881607635,
+        "zin_at_resonance": [
+          68.69992111099458,
+          -6.389151672314779
+        ],
+        "vswr_at_resonance": 1.400942357202476
+      },
+      {
+        "num_segments": 20,
+        "resonant_frequency_hz": 2410693424.7445636,
+        "resonant_frequency_ghz": 2.4106934247445637,
+        "min_s11_db": -15.201767762883119,
+        "min_index": 31,
+        "interpolated": true,
+        "at_sweep_boundary": false,
+        "frequency_step_percent": 0.8296368088413895,
+        "resolution_better_than_one_percent": true,
+        "zero_reactance_f0_ghz": 2.439519218385768,
+        "has_bandwidth": true,
+        "truncated": false,
+        "threshold_db": -10.0,
+        "bandwidth_mhz": 245.24066088955306,
+        "bandwidth_percent": 10.13317193831466,
+        "f_low_ghz": 2.29755631693126,
+        "f_high_ghz": 2.5427969778208133,
+        "zin_at_resonance": [
+          69.5436566886372,
+          -7.108232481710557
+        ],
+        "vswr_at_resonance": 1.4244012264344912
+      },
+      {
+        "num_segments": 30,
+        "resonant_frequency_hz": 2405491027.65535,
+        "resonant_frequency_ghz": 2.4054910276553505,
+        "min_s11_db": -15.108305496715213,
+        "min_index": 30,
+        "interpolated": true,
+        "at_sweep_boundary": false,
+        "frequency_step_percent": 0.8314310787304888,
+        "resolution_better_than_one_percent": true,
+        "zero_reactance_f0_ghz": 2.435977010402042,
+        "has_bandwidth": true,
+        "truncated": false,
+        "threshold_db": -10.0,
+        "bandwidth_mhz": 243.39476646167086,
+        "bandwidth_percent": 10.079040345182756,
+        "f_low_ghz": 2.29316314044988,
+        "f_high_ghz": 2.5365579069115505,
+        "zin_at_resonance": [
+          69.69206951387262,
+          -7.486601430015239
+        ],
+        "vswr_at_resonance": 1.429424699269956
+      },
+      {
+        "num_segments": 40,
+        "resonant_frequency_hz": 2402494572.844646,
+        "resonant_frequency_ghz": 2.4024945728446463,
+        "min_s11_db": -15.049760198874633,
+        "min_index": 30,
+        "interpolated": true,
+        "at_sweep_boundary": false,
+        "frequency_step_percent": 0.8324680615748169,
+        "resolution_better_than_one_percent": true,
+        "zero_reactance_f0_ghz": 2.434325863104343,
+        "has_bandwidth": true,
+        "truncated": false,
+        "threshold_db": -10.0,
+        "bandwidth_mhz": 242.3794341625533,
+        "bandwidth_percent": 10.050058961926071,
+        "f_low_ghz": 2.290531796999292,
+        "f_high_ghz": 2.5329112311618456,
+        "zin_at_resonance": [
+          69.748344881881,
+          -7.770063286382761
+        ],
+        "vswr_at_resonance": 1.4314238216815731
+      }
+    ],
+    "finest_change_percent": 0.06782770222855922,
+    "passed": true
+  },
+  "independent_reference": {
+    "passed": true,
+    "status": "Wire dipole (0\u00b0 bend) matched NEC2 reference (57.46 mm, a=0.5 mm): fr err=0.91% (N=40) / 1.01% (N=80) [<5%]; Rin err=0.10% (N=40) / 2.12% (N=80) [<5%]; |X(f0)|=5.34 \u03a9 (N=40) / 5.73 \u03a9 (N=80). Note: Wire V-dipole benchmark, not an origami patch or surface antenna, and not a measurement.",
+    "details": {
+      "bend_deg": 0.0,
+      "nec2": {
+        "reactance_zero_hz": 2412447218.6059513,
+        "rin_at_reactance_zero": 73.6066016090041
+      },
+      "by_segments": {
+        "40": {
+          "num_segments": 40,
+          "reactance_zero_hz": 2434325863.104345,
+          "rin_at_reactance_zero": 73.53656992042862,
+          "fr_error_percent": 0.9069066601604762,
+          "rin_error_percent": 0.09514321683738247,
+          "reactance_at_nec2_res_ohms": -5.341535968694719,
+          "reactance_error_ohms": 5.341535968694719,
+          "passed_fr": true,
+          "passed_rin": true,
+          "passed": true
+        },
+        "80": {
+          "num_segments": 80,
+          "reactance_zero_hz": 2436914161.3992677,
+          "rin_at_reactance_zero": 75.16793894530727,
+          "fr_error_percent": 1.0141959834236187,
+          "rin_error_percent": 2.12119198845362,
+          "reactance_at_nec2_res_ohms": -5.732043800113598,
+          "reactance_error_ohms": 5.732043800113598,
+          "passed_fr": true,
+          "passed_rin": true,
+          "passed": true
+        }
+      },
+      "passed": true,
+      "result": "PASS"
+    }
+  },
+  "patch": {
+    "passed": false,
+    "status": "Not implemented: substrate-aware antenna formulation"
+  },
+  "fold_sweep_reference": {
+    "passed": false,
+    "status": "Wire V-dipole fold sweep (0\u00b0, 30\u00b0, 60\u00b0, 90\u00b0, 120\u00b0): fr err < 1.1% at all angles (<5% gate met). Rin err: 0\u00b0 (0.10%/2.12% PASS), 30\u00b0 (0.99%/1.16% PASS), 60\u00b0 (3.49%/1.57% PASS), 90\u00b0 (6.69%/5.08% FAIL >5%), 120\u00b0 (8.00%/6.72% FAIL >5%). Fails 5% Rin gate at 90\u00b0 and 120\u00b0. Note: Wire V-dipole benchmark, not an origami patch or surface antenna, and not a measurement.",
+    "details": {
+      "name": "NEC2 Wire V-Dipole Benchmark Comparison",
+      "reference_file": "C:\\antigravity_projects\\rfori\\data\\validation\\nec2_reference.json",
+      "disclaimer": "Wire V-dipole benchmark, not an origami patch or surface antenna, and not a measurement.",
+      "gates": {
+        "fr_error_percent_max": 5.0,
+        "rin_error_percent_max": 5.0
+      },
+      "cases": {
+        "0": {
+          "bend_deg": 0.0,
+          "nec2": {
+            "reactance_zero_hz": 2412447218.6059513,
+            "rin_at_reactance_zero": 73.6066016090041
+          },
+          "by_segments": {
+            "40": {
+              "num_segments": 40,
+              "reactance_zero_hz": 2434325863.104345,
+              "rin_at_reactance_zero": 73.53656992042862,
+              "fr_error_percent": 0.9069066601604762,
+              "rin_error_percent": 0.09514321683738247,
+              "reactance_at_nec2_res_ohms": -5.341535968694719,
+              "reactance_error_ohms": 5.341535968694719,
+              "passed_fr": true,
+              "passed_rin": true,
+              "passed": true
+            },
+            "80": {
+              "num_segments": 80,
+              "reactance_zero_hz": 2436914161.3992677,
+              "rin_at_reactance_zero": 75.16793894530727,
+              "fr_error_percent": 1.0141959834236187,
+              "rin_error_percent": 2.12119198845362,
+              "reactance_at_nec2_res_ohms": -5.732043800113598,
+              "reactance_error_ohms": 5.732043800113598,
+              "passed_fr": true,
+              "passed_rin": true,
+              "passed": true
+            }
+          },
+          "passed": true,
+          "result": "PASS"
+        },
+        "30": {
+          "bend_deg": 30.0,
+          "nec2": {
+            "reactance_zero_hz": 2421305504.3557715,
+            "rin_at_reactance_zero": 70.66237194364281
+          },
+          "by_segments": {
+            "40": {
+              "num_segments": 40,
+              "reactance_zero_hz": 2443437738.6999927,
+              "rin_at_reactance_zero": 69.96207365863249,
+              "fr_error_percent": 0.9140620340723903,
+              "rin_error_percent": 0.9910483695181453,
+              "reactance_at_nec2_res_ohms": -5.406842266505386,
+              "reactance_error_ohms": 5.406842266505386,
+              "passed_fr": true,
+              "passed_rin": true,
+              "passed": true
+            },
+            "80": {
+              "num_segments": 80,
+              "reactance_zero_hz": 2445450619.8624454,
+              "rin_at_reactance_zero": 71.47909493895637,
+              "fr_error_percent": 0.9971940948070501,
+              "rin_error_percent": 1.155810331366936,
+              "reactance_at_nec2_res_ohms": -5.6708357680307575,
+              "reactance_error_ohms": 5.6708357680307575,
+              "passed_fr": true,
+              "passed_rin": true,
+              "passed": true
+            }
+          },
+          "passed": true,
+          "result": "PASS"
+        },
+        "60": {
+          "bend_deg": 60.0,
+          "nec2": {
+            "reactance_zero_hz": 2451996521.7889614,
+            "rin_at_reactance_zero": 61.81858574587718
+          },
+          "by_segments": {
+            "40": {
+              "num_segments": 40,
+              "reactance_zero_hz": 2474666694.660462,
+              "rin_at_reactance_zero": 59.66074617351686,
+              "fr_error_percent": 0.9245597483539851,
+              "rin_error_percent": 3.490600029626572,
+              "reactance_at_nec2_res_ohms": -5.508540281290323,
+              "reactance_error_ohms": 5.508540281290323,
+              "passed_fr": true,
+              "passed_rin": true,
+              "passed": true
+            },
+            "80": {
+              "num_segments": 80,
+              "reactance_zero_hz": 2475079051.6960955,
+              "rin_at_reactance_zero": 60.849136138415695,
+              "fr_error_percent": 0.94137694332018,
+              "rin_error_percent": 1.568217059262213,
+              "reactance_at_nec2_res_ohms": -5.416078150861882,
+              "reactance_error_ohms": 5.416078150861882,
+              "passed_fr": true,
+              "passed_rin": true,
+              "passed": true
+            }
+          },
+          "passed": true,
+          "result": "PASS"
+        },
+        "90": {
+          "bend_deg": 90.0,
+          "nec2": {
+            "reactance_zero_hz": 2516903189.5837636,
+            "rin_at_reactance_zero": 47.13851231804058
+          },
+          "by_segments": {
+            "40": {
+              "num_segments": 40,
+              "reactance_zero_hz": 2540554697.1538663,
+              "rin_at_reactance_zero": 43.98446987589178,
+              "fr_error_percent": 0.9397066866927882,
+              "rin_error_percent": 6.691009722302378,
+              "reactance_at_nec2_res_ohms": -5.557006854041357,
+              "reactance_error_ohms": 5.557006854041357,
+              "passed_fr": true,
+              "passed_rin": false,
+              "passed": false
+            },
+            "80": {
+              "num_segments": 80,
+              "reactance_zero_hz": 2538609112.4439116,
+              "rin_at_reactance_zero": 44.74365346204198,
+              "fr_error_percent": 0.8624059498982002,
+              "rin_error_percent": 5.080471865214237,
+              "reactance_at_nec2_res_ohms": -4.957174809565212,
+              "reactance_error_ohms": 4.957174809565212,
+              "passed_fr": true,
+              "passed_rin": false,
+              "passed": false
+            }
+          },
+          "passed": false,
+          "result": "FAIL"
+        },
+        "120": {
+          "bend_deg": 120.0,
+          "nec2": {
+            "reactance_zero_hz": 2641902310.262476,
+            "rin_at_reactance_zero": 27.79426121457314
+          },
+          "by_segments": {
+            "40": {
+              "num_segments": 40,
+              "reactance_zero_hz": 2667156190.982328,
+              "rin_at_reactance_zero": 25.569413430556317,
+              "fr_error_percent": 0.9558975977935751,
+              "rin_error_percent": 8.004702002477716,
+              "reactance_at_nec2_res_ohms": -5.3386343356783925,
+              "reactance_error_ohms": 5.3386343356783925,
+              "passed_fr": true,
+              "passed_rin": false,
+              "passed": false
+            },
+            "80": {
+              "num_segments": 80,
+              "reactance_zero_hz": 2662338638.712114,
+              "rin_at_reactance_zero": 25.925651183585398,
+              "fr_error_percent": 0.773545954755894,
+              "rin_error_percent": 6.72300665436644,
+              "reactance_at_nec2_res_ohms": -4.222914161588695,
+              "reactance_error_ohms": 4.222914161588695,
+              "passed_fr": true,
+              "passed_rin": false,
+              "passed": false
+            }
+          },
+          "passed": false,
+          "result": "FAIL"
+        }
+      },
+      "straight_dipole_benchmark": {
+        "passed": true,
+        "result": "PASS",
+        "details": {
+          "bend_deg": 0.0,
+          "nec2": {
+            "reactance_zero_hz": 2412447218.6059513,
+            "rin_at_reactance_zero": 73.6066016090041
+          },
+          "by_segments": {
+            "40": {
+              "num_segments": 40,
+              "reactance_zero_hz": 2434325863.104345,
+              "rin_at_reactance_zero": 73.53656992042862,
+              "fr_error_percent": 0.9069066601604762,
+              "rin_error_percent": 0.09514321683738247,
+              "reactance_at_nec2_res_ohms": -5.341535968694719,
+              "reactance_error_ohms": 5.341535968694719,
+              "passed_fr": true,
+              "passed_rin": true,
+              "passed": true
+            },
+            "80": {
+              "num_segments": 80,
+              "reactance_zero_hz": 2436914161.3992677,
+              "rin_at_reactance_zero": 75.16793894530727,
+              "fr_error_percent": 1.0141959834236187,
+              "rin_error_percent": 2.12119198845362,
+              "reactance_at_nec2_res_ohms": -5.732043800113598,
+              "reactance_error_ohms": 5.732043800113598,
+              "passed_fr": true,
+              "passed_rin": true,
+              "passed": true
+            }
+          },
+          "passed": true,
+          "result": "PASS"
+        }
+      },
+      "fold_sweep_benchmark": {
+        "passed": false,
+        "result": "FAIL",
+        "failed_angles_deg": [
+          90.0,
+          120.0
+        ]
+      }
+    }
+  },
+  "nec2_benchmark": {
+    "name": "NEC2 Wire V-Dipole Benchmark Comparison",
+    "reference_file": "C:\\antigravity_projects\\rfori\\data\\validation\\nec2_reference.json",
+    "disclaimer": "Wire V-dipole benchmark, not an origami patch or surface antenna, and not a measurement.",
+    "gates": {
+      "fr_error_percent_max": 5.0,
+      "rin_error_percent_max": 5.0
+    },
+    "cases": {
+      "0": {
+        "bend_deg": 0.0,
+        "nec2": {
+          "reactance_zero_hz": 2412447218.6059513,
+          "rin_at_reactance_zero": 73.6066016090041
+        },
+        "by_segments": {
+          "40": {
+            "num_segments": 40,
+            "reactance_zero_hz": 2434325863.104345,
+            "rin_at_reactance_zero": 73.53656992042862,
+            "fr_error_percent": 0.9069066601604762,
+            "rin_error_percent": 0.09514321683738247,
+            "reactance_at_nec2_res_ohms": -5.341535968694719,
+            "reactance_error_ohms": 5.341535968694719,
+            "passed_fr": true,
+            "passed_rin": true,
+            "passed": true
+          },
+          "80": {
+            "num_segments": 80,
+            "reactance_zero_hz": 2436914161.3992677,
+            "rin_at_reactance_zero": 75.16793894530727,
+            "fr_error_percent": 1.0141959834236187,
+            "rin_error_percent": 2.12119198845362,
+            "reactance_at_nec2_res_ohms": -5.732043800113598,
+            "reactance_error_ohms": 5.732043800113598,
+            "passed_fr": true,
+            "passed_rin": true,
+            "passed": true
+          }
+        },
+        "passed": true,
+        "result": "PASS"
+      },
+      "30": {
+        "bend_deg": 30.0,
+        "nec2": {
+          "reactance_zero_hz": 2421305504.3557715,
+          "rin_at_reactance_zero": 70.66237194364281
+        },
+        "by_segments": {
+          "40": {
+            "num_segments": 40,
+            "reactance_zero_hz": 2443437738.6999927,
+            "rin_at_reactance_zero": 69.96207365863249,
+            "fr_error_percent": 0.9140620340723903,
+            "rin_error_percent": 0.9910483695181453,
+            "reactance_at_nec2_res_ohms": -5.406842266505386,
+            "reactance_error_ohms": 5.406842266505386,
+            "passed_fr": true,
+            "passed_rin": true,
+            "passed": true
+          },
+          "80": {
+            "num_segments": 80,
+            "reactance_zero_hz": 2445450619.8624454,
+            "rin_at_reactance_zero": 71.47909493895637,
+            "fr_error_percent": 0.9971940948070501,
+            "rin_error_percent": 1.155810331366936,
+            "reactance_at_nec2_res_ohms": -5.6708357680307575,
+            "reactance_error_ohms": 5.6708357680307575,
+            "passed_fr": true,
+            "passed_rin": true,
+            "passed": true
+          }
+        },
+        "passed": true,
+        "result": "PASS"
+      },
+      "60": {
+        "bend_deg": 60.0,
+        "nec2": {
+          "reactance_zero_hz": 2451996521.7889614,
+          "rin_at_reactance_zero": 61.81858574587718
+        },
+        "by_segments": {
+          "40": {
+            "num_segments": 40,
+            "reactance_zero_hz": 2474666694.660462,
+            "rin_at_reactance_zero": 59.66074617351686,
+            "fr_error_percent": 0.9245597483539851,
+            "rin_error_percent": 3.490600029626572,
+            "reactance_at_nec2_res_ohms": -5.508540281290323,
+            "reactance_error_ohms": 5.508540281290323,
+            "passed_fr": true,
+            "passed_rin": true,
+            "passed": true
+          },
+          "80": {
+            "num_segments": 80,
+            "reactance_zero_hz": 2475079051.6960955,
+            "rin_at_reactance_zero": 60.849136138415695,
+            "fr_error_percent": 0.94137694332018,
+            "rin_error_percent": 1.568217059262213,
+            "reactance_at_nec2_res_ohms": -5.416078150861882,
+            "reactance_error_ohms": 5.416078150861882,
+            "passed_fr": true,
+            "passed_rin": true,
+            "passed": true
+          }
+        },
+        "passed": true,
+        "result": "PASS"
+      },
+      "90": {
+        "bend_deg": 90.0,
+        "nec2": {
+          "reactance_zero_hz": 2516903189.5837636,
+          "rin_at_reactance_zero": 47.13851231804058
+        },
+        "by_segments": {
+          "40": {
+            "num_segments": 40,
+            "reactance_zero_hz": 2540554697.1538663,
+            "rin_at_reactance_zero": 43.98446987589178,
+            "fr_error_percent": 0.9397066866927882,
+            "rin_error_percent": 6.691009722302378,
+            "reactance_at_nec2_res_ohms": -5.557006854041357,
+            "reactance_error_ohms": 5.557006854041357,
+            "passed_fr": true,
+            "passed_rin": false,
+            "passed": false
+          },
+          "80": {
+            "num_segments": 80,
+            "reactance_zero_hz": 2538609112.4439116,
+            "rin_at_reactance_zero": 44.74365346204198,
+            "fr_error_percent": 0.8624059498982002,
+            "rin_error_percent": 5.080471865214237,
+            "reactance_at_nec2_res_ohms": -4.957174809565212,
+            "reactance_error_ohms": 4.957174809565212,
+            "passed_fr": true,
+            "passed_rin": false,
+            "passed": false
+          }
+        },
+        "passed": false,
+        "result": "FAIL"
+      },
+      "120": {
+        "bend_deg": 120.0,
+        "nec2": {
+          "reactance_zero_hz": 2641902310.262476,
+          "rin_at_reactance_zero": 27.79426121457314
+        },
+        "by_segments": {
+          "40": {
+            "num_segments": 40,
+            "reactance_zero_hz": 2667156190.982328,
+            "rin_at_reactance_zero": 25.569413430556317,
+            "fr_error_percent": 0.9558975977935751,
+            "rin_error_percent": 8.004702002477716,
+            "reactance_at_nec2_res_ohms": -5.3386343356783925,
+            "reactance_error_ohms": 5.3386343356783925,
+            "passed_fr": true,
+            "passed_rin": false,
+            "passed": false
+          },
+          "80": {
+            "num_segments": 80,
+            "reactance_zero_hz": 2662338638.712114,
+            "rin_at_reactance_zero": 25.925651183585398,
+            "fr_error_percent": 0.773545954755894,
+            "rin_error_percent": 6.72300665436644,
+            "reactance_at_nec2_res_ohms": -4.222914161588695,
+            "reactance_error_ohms": 4.222914161588695,
+            "passed_fr": true,
+            "passed_rin": false,
+            "passed": false
+          }
+        },
+        "passed": false,
+        "result": "FAIL"
+      }
+    },
+    "straight_dipole_benchmark": {
+      "passed": true,
+      "result": "PASS",
+      "details": {
+        "bend_deg": 0.0,
+        "nec2": {
+          "reactance_zero_hz": 2412447218.6059513,
+          "rin_at_reactance_zero": 73.6066016090041
+        },
+        "by_segments": {
+          "40": {
+            "num_segments": 40,
+            "reactance_zero_hz": 2434325863.104345,
+            "rin_at_reactance_zero": 73.53656992042862,
+            "fr_error_percent": 0.9069066601604762,
+            "rin_error_percent": 0.09514321683738247,
+            "reactance_at_nec2_res_ohms": -5.341535968694719,
+            "reactance_error_ohms": 5.341535968694719,
+            "passed_fr": true,
+            "passed_rin": true,
+            "passed": true
+          },
+          "80": {
+            "num_segments": 80,
+            "reactance_zero_hz": 2436914161.3992677,
+            "rin_at_reactance_zero": 75.16793894530727,
+            "fr_error_percent": 1.0141959834236187,
+            "rin_error_percent": 2.12119198845362,
+            "reactance_at_nec2_res_ohms": -5.732043800113598,
+            "reactance_error_ohms": 5.732043800113598,
+            "passed_fr": true,
+            "passed_rin": true,
+            "passed": true
+          }
+        },
+        "passed": true,
+        "result": "PASS"
+      }
+    },
+    "fold_sweep_benchmark": {
+      "passed": false,
+      "result": "FAIL",
+      "failed_angles_deg": [
+        90.0,
+        120.0
+      ]
+    }
+  },
+  "model_limitations": [
+    "Antenna solver uses a Galerkin rooftop wire basis with reduced kernel; RWG surface basis functions are not implemented in the antenna solver.",
+    "Wire kernel uses exact asinh static part with Gauss-Legendre quadrature for smooth dynamic remainder; surface singular quadrature is not implemented.",
+    "Origami RF conversion sorts conductor vertices along a spatial axis; it does not preserve a specified physical conductor path and can change topology with folding.",
+    "Feed is a delta-gap generator at the node between segment p-1 and p; Zin = 1 / I_feed. Terminals do not define a meshed physical gap.",
+    "Dielectric loading is only an effective-permittivity wavenumber approximation; no layered Green function, dielectric currents or patch substrate solution.",
+    "Independent NEC2 reference for a wire V-dipole is bundled; straight dipole resonance and Rin pass within 2.12%. Folded V-dipole Rin fails the 5% gate at 90\u00b0 and 120\u00b0 (up to 8.0% error). Not an origami patch or surface antenna, and not a measurement.",
+    "Far-field, gain, efficiency and axial ratio are not validated; metasurface estimates do not validate the antenna solver."
+  ]
+}

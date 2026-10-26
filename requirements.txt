@@ -1,4 +1,4 @@
 # RF Origami Design Studio
-# Core architecture is 100% self-contained with standard library.
-# Optional test runner:
+numpy>=1.24
+matplotlib>=3.7
 pytest>=7.0.0

@@ -34,7 +34,7 @@
 
     <!-- Standalone EM Benchmarks Button -->
     <button id="btn-open-benchmarks" class="btn-secondary mini" title="View Standalone EM Validation Benchmarks">
-      EM Benchmarks
+      Validation
     </button>
   </header>
 
@@ -500,23 +500,31 @@
             </div>
 
             <!-- Live Numerical Antenna Metrics Dashboard -->
-            <div class="card-subtitle" style="margin-top: 6px;">Antenna Metrics (Numerical MoM)</div>
+            <div class="card-subtitle" style="margin-top: 6px;">Antenna Metrics <span class="estimate-badge">Estimate · Not validated</span></div>
             <table class="rf-stats-table">
               <tbody>
-                <tr><td>Resonance (f₀):</td><td id="rf-stat-f0" class="text-primary font-bold">—</td></tr>
-                <tr><td>Min S11:</td><td id="rf-stat-s11">—</td></tr>
-                <tr><td>VSWR at f₀:</td><td id="rf-stat-vswr">—</td></tr>
-                <tr><td>-10 dB Bandwidth:</td><td id="rf-stat-bw">—</td></tr>
-                <tr><td>Input Zin (f₀):</td><td id="rf-stat-zin">—</td></tr>
+                <tr><td>Resonance (f₀) <span class="estimate-badge">Estimate</span></td><td id="rf-stat-f0" class="text-primary font-bold">—</td></tr>
+                <tr><td>Min S11 <span class="estimate-badge">Estimate</span></td><td id="rf-stat-s11">—</td></tr>
+                <tr><td>VSWR at f₀ <span class="estimate-badge">Estimate</span></td><td id="rf-stat-vswr">—</td></tr>
+                <tr><td>-10 dB Bandwidth <span class="estimate-badge">Estimate</span></td><td id="rf-stat-bw">—</td></tr>
+                <tr><td>Input Zin (f₀) <span class="estimate-badge">Estimate</span></td><td id="rf-stat-zin">—</td></tr>
                 <tr><td>Segments:</td><td id="rf-stat-segments">—</td></tr>
                 <tr><td>Status:</td><td id="rf-stat-engine" class="text-muted">Experimental / Not validated</td></tr>
               </tbody>
             </table>
 
+            <p id="rf-resolution-note" class="model-limitations" role="status">Frequency resolution is checked after each solve.</p>
+            <details class="model-limitations">
+              <summary>Model limitations</summary>
+              <p>Wire-segment approximation; no RWG surface basis. Panel vertices are sorted into an approximate conductor path. The feed excites one segment and does not mesh a physical gap. Dielectrics use an effective-permittivity approximation. Substrate-aware patch antennas and fold tuning are not validated. Far-field, gain, efficiency and axial ratio remain not validated.</p>
+            </details>
+
             <!-- Fold Angle Sweep Results Table -->
             <div id="rf-fold-sweep-summary" class="rf-fold-sweep-box" style="display: none;">
-              <div class="card-subtitle">Fold Angle Frequency Tuning</div>
+              <div class="card-subtitle">Fold Angle Frequency Tuning <span class="estimate-badge">Estimate - not validated</span></div>
               <div id="rf-fold-sweep-content" class="rf-fold-sweep-text"></div>
+              <canvas id="rf-fold-heatmap" role="img" aria-label="Estimated S11 versus frequency and fold angle" style="width:100%;height:190px"></canvas>
+              <p class="model-limitations">S11 estimates: blue = −30 dB or lower; amber = 0 dB. Fold tuning is not validated.</p>
             </div>
 
           </div>
@@ -952,7 +960,7 @@
       </div>
 
       <!-- Live Performance Metrics -->
-      <div class="card-subtitle" style="margin-top: 8px;">Absorption Performance Metrics</div>
+      <div class="card-subtitle" style="margin-top: 8px;">Absorption Performance Metrics <span class="estimate-badge">Estimate - not validated</span></div>
       <table class="rf-stats-table">
         <tbody>
           <tr><td>Resonant Frequency (f₀):</td><td id="abs-stat-f0" class="text-primary font-bold">—</td></tr>
@@ -970,11 +978,11 @@
     <main class="viewport-area">
 
       <div class="hud-stats-bar">
-        <div class="hud-chip"><span class="hud-label">Mode:</span> <span class="hud-val text-primary">Surface MoM RWG</span></div>
+        <div class="hud-chip"><span class="hud-label">Mode:</span> <span class="hud-val text-primary">Surface MoM RWG</span> <span class="estimate-badge">Estimate - not validated</span></div>
         <div class="hud-chip"><span class="hud-label">Pattern:</span> <span id="abs-hud-pattern" class="hud-val">Miura-Ori</span></div>
         <div class="hud-chip"><span class="hud-label">Envelope:</span> <span id="abs-hud-dims" class="hud-val">0 × 0 × 0 mm</span></div>
         <div class="hud-chip"><span class="hud-label">Fold θ:</span> <span id="abs-hud-angle" class="hud-val">30.0°</span></div>
-        <div class="hud-chip"><span class="hud-label">Status:</span> <span id="abs-hud-status" class="hud-val text-success">Ready</span></div>
+        <div class="hud-chip"><span class="hud-label">Status:</span> <span id="abs-hud-status" class="hud-val text-success">Ready</span> <span class="estimate-badge">Estimate - not validated</span></div>
       </div>
 
       <div class="absorber-work-grid">
@@ -995,7 +1003,7 @@
         <!-- Top Right: Absorption Spectrum & Reflection S11 -->
         <div class="viewport-box absorber-chart-box">
           <div class="viewport-header">
-            <span class="viewport-title">Absorption Spectrum A(f) & Reflection S11(f)</span>
+            <span class="viewport-title">Absorption Spectrum A(f) & Reflection S11(f) <span class="estimate-badge">Estimate - not validated</span></span>
             <div class="rf-zin-legend">
               <span class="legend-chip" style="background:rgba(22, 163, 74, 0.2); color:#16a34a; border-color:#16a34a;">― Absorption A(f)</span>
               <span class="legend-chip" style="background:rgba(2, 132, 199, 0.2); color:#0284c7; border-color:#0284c7;">┄ S11 [dB]</span>
@@ -1009,7 +1017,7 @@
         <!-- Bottom: 2D Fold Angle Tuning Heatmap Matrix -->
         <div class="viewport-box absorber-heatmap-box">
           <div class="viewport-header">
-            <span class="viewport-title">2D Frequency Tuning Heatmap: Absorption A(θ, f) vs Fold Angle</span>
+            <span class="viewport-title">2D Frequency Tuning Heatmap: Absorption A(θ, f) vs Fold Angle <span class="estimate-badge">Estimate - not validated</span></span>
             <span id="abs-heatmap-hover-info" class="rf-badge-res">Hover over heatmap to inspect (θ, f)</span>
           </div>
           <div class="heatmap-canvas-wrap">
@@ -1087,7 +1095,7 @@
 
     <main class="viewport-area">
       <div class="hud-stats-bar">
-        <div class="hud-chip"><span class="hud-label">Optimization:</span> <span id="opt-hud-status" class="hud-val text-primary">Ready</span></div>
+        <div class="hud-chip"><span class="hud-label">Optimization:</span> <span id="opt-hud-status" class="hud-val text-primary">Ready</span> <span class="estimate-badge">Estimate - not validated</span></div>
         <div class="hud-chip"><span class="hud-label">Pareto Solutions:</span> <span id="opt-hud-pareto-count" class="hud-val">0</span></div>
       </div>
 
@@ -1095,7 +1103,7 @@
         <!-- Pareto Chart -->
         <div class="viewport-box">
           <div class="viewport-header">
-            <span class="viewport-title">Pareto Optimal Frontier: Tuning Range vs Compactness</span>
+            <span class="viewport-title">Pareto Optimal Frontier: Tuning Range vs Compactness <span class="estimate-badge">Estimate - not validated</span></span>
           </div>
           <div class="rf-canvas-wrap">
             <canvas id="opt-pareto-canvas"></canvas>
@@ -1105,7 +1113,7 @@
         <!-- Pareto Table -->
         <div class="viewport-box">
           <div class="viewport-header">
-            <span class="viewport-title">Discovered Non-Dominated Solutions</span>
+            <span class="viewport-title">Discovered Non-Dominated Solutions <span class="estimate-badge">Estimate - not validated</span></span>
           </div>
           <div id="opt-pareto-table-wrap" class="pareto-table-wrap">
             <table class="styled-table" id="opt-pareto-table">
@@ -1140,11 +1148,17 @@
       </div>
 
       <div class="benchmark-modal-body">
+        <p class="model-limitations">Research prototype. Passing a diagnostic does not establish antenna accuracy. The image-scaled monopole is not an independent second benchmark.</p>
+        <details class="model-limitations" open>
+          <summary>Validation report</summary>
+          <div id="validation-summary">Loading saved validation report…</div>
+          <details><summary>Full report source</summary><pre id="validation-report-content"></pre></details>
+        </details>
         <!-- Benchmark 1: Free Space -->
         <div class="benchmark-card" id="bench-card-freespace">
           <div class="benchmark-card-top">
             <span class="benchmark-card-name">1. Free-Space Wave Propagation</span>
-            <span id="bench-status-freespace" class="status-tag tag-valid">Pass</span>
+            <span id="bench-status-freespace" class="status-tag">Not run</span>
           </div>
           <p class="bench-card-desc">Speed of light c = 1/√(ε₀μ₀) = 2.9979×10⁸ m/s, intrinsic wave impedance η₀ = √(μ₀/ε₀) ≈ 376.73 Ω.</p>
           <div class="benchmark-metrics-row" id="bench-metrics-freespace">
@@ -1158,12 +1172,12 @@
         <div class="benchmark-card" id="bench-card-dipole">
           <div class="benchmark-card-top">
             <span class="benchmark-card-name">2. Resonant Half-Wave Dipole Antenna (L ≈ 0.46 λ at 2.4 GHz)</span>
-            <span id="bench-status-dipole" class="status-tag tag-valid">Pass</span>
+            <span id="bench-status-dipole" class="status-tag">Not run</span>
           </div>
           <p class="bench-card-desc">Numerical Pocklington EFIE solve with Harrington pulse testing. Analytical benchmark: Rin ≈ 70 - 78 Ω, Xin ≈ 0 Ω.</p>
           <div class="benchmark-metrics-row" id="bench-metrics-dipole">
-            <span>Simulated Zin: <strong id="bench-val-dipole-zin">78.6 + j15.2 Ω</strong></span>
-            <span>Return Loss S11: <strong id="bench-val-dipole-s11">-12.0 dB</strong></span>
+            <span>Simulated Zin: <strong id="bench-val-dipole-zin">—</strong></span>
+            <span>S11: <strong id="bench-val-dipole-s11">—</strong></span>
             <span>Segments: <strong>21 (MoM)</strong></span>
           </div>
         </div>
@@ -1172,11 +1186,11 @@
         <div class="benchmark-card" id="bench-card-monopole">
           <div class="benchmark-card-top">
             <span class="benchmark-card-name">3. Quarter-Wave Monopole over Infinite PEC Ground (L ≈ 0.23 λ at 2.4 GHz)</span>
-            <span id="bench-status-monopole" class="status-tag tag-valid">Pass</span>
+            <span id="bench-status-monopole" class="status-tag">Not run</span>
           </div>
           <p class="bench-card-desc">Image theory solve: Zin,monopole = 0.5 × Zin,dipole ≈ 35 - 39 Ω.</p>
           <div class="benchmark-metrics-row" id="bench-metrics-monopole">
-            <span>Simulated Zin: <strong id="bench-val-monopole-zin">39.3 + j7.6 Ω</strong></span>
+            <span>Simulated Zin: <strong id="bench-val-monopole-zin">—</strong></span>
             <span>Theoretical Expected: <strong>35 - 39 Ω</strong></span>
           </div>
         </div>

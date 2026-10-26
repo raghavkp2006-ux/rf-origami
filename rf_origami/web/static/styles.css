@@ -1919,6 +1919,13 @@ header {
   color: var(--text-main);
 }
 
+.estimate-badge { color: #92400e; background: #fef3c7; border-radius: 4px; padding: 2px 5px; font-size: 11px; }
+.model-limitations { font-size: 12px; line-height: 1.5; padding: 10px; color: #475569; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 5px; }
+#validation-report-content { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; max-height: 320px; overflow-y: auto; }
+.validation-results { width: 100%; border-collapse: collapse; font-size: 11px; }
+.validation-results th, .validation-results td { padding: 7px 5px; border-bottom: 1px solid #cbd5e1; text-align: left; vertical-align: top; }
+.validation-results td:nth-child(2) { min-width: 82px; font-weight: 600; }
+
 .btn-secondary.active-strain {
   background: #fef3c7 !important;
   color: #b45309 !important;

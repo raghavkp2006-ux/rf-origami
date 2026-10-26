@@ -56,6 +56,10 @@ class OrigamiRequestHandler(BaseHTTPRequestHandler):
             self._send_json(benchmarks)
             return
 
+        if url_path == "/api/rf/validation":
+            self._send_json(OrigamiWebService.get_validation_report())
+            return
+
         if url_path == "/api/absorber/benchmarks":
             benchmarks = OrigamiWebService.get_absorber_benchmarks()
             self._send_json(benchmarks)
