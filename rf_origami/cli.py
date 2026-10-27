@@ -276,8 +276,14 @@ def main(args: Optional[List[str]] = None) -> int:
         print("-------------------------------------------------------")
         for i, sol in enumerate(pareto[:5]):
             obj = sol.get("objectives", {})
-            p = sol.get("parameters", {})
-            print(f"Solution #{i+1}: Tuning = {obj.get('tuning_range_ghz', 0):.2f} GHz | Compact = {obj.get('compactness_ratio', 0):.3f} | Abs = {obj.get('peak_absorption', 0)*100:.1f}%")
+            p = sol.get("parameters", sol.get("params", {}))
+            if isinstance(obj, dict):
+                print(f"Solution #{i+1}: Tuning = {obj.get('tuning_range_ghz', 0):.2f} GHz | Compact = {obj.get('compactness_ratio', 0):.3f} | Abs = {obj.get('peak_absorption', 0)*100:.1f}%")
+            elif isinstance(obj, (list, tuple)) and len(obj) >= 4:
+                abs_pct = max(0.0, (1.0 - obj[1]) * 100) if obj[1] <= 1.0 else 0.0
+                print(f"Solution #{i+1}: f_err = {obj[0]:.2f} GHz | Abs = {abs_pct:.1f}% | BW = {-obj[2]:.1f} MHz | Vol = {obj[3]:.1f} mm3")
+            else:
+                print(f"Solution #{i+1}: {obj}")
         print("=======================================================\n")
         if parsed.out:
             with open(parsed.out, "w") as f:

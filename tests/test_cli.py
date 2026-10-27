@@ -82,3 +82,15 @@ def test_cli_ecm():
         "--fold", "30.0",
     ])
     assert ret == 0
+
+
+def test_cli_optimize(capsys):
+    ret = main([
+        "optimize",
+        "--pop", "2",
+        "--gens", "1",
+    ])
+    assert ret == 0
+    captured = capsys.readouterr()
+    assert "Estimate - not validated" in captured.out
+
